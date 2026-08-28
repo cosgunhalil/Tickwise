@@ -7,3 +7,7 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+pub mod probe;
+
+pub use probe::{DeterminismProbe, StateDump};
