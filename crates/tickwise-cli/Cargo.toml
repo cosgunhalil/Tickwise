@@ -1,0 +1,17 @@
+[package]
+name = "tickwise-cli"
+description = "Command line tool for Tickwise: compare, diff, and inspect deterministic simulation recordings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+keywords = ["determinism", "replay", "desync", "gamedev", "debugging"]
+categories = ["game-development", "command-line-utilities"]
+
+[[bin]]
+name = "tickwise"
+path = "src/main.rs"
+
+[dependencies]
+tickwise.workspace = true

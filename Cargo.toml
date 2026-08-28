@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/tickwise",
+    "crates/tickwise-cli",
+    "crates/tickwise-refsim",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/cosgunhalil/Tickwise"
+rust-version = "1.85"
+
+[workspace.dependencies]
+tickwise = { path = "crates/tickwise", version = "0.1.0" }
+tickwise-refsim = { path = "crates/tickwise-refsim", version = "0.1.0" }
