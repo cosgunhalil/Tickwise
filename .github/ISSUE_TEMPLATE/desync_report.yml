@@ -1,0 +1,70 @@
+name: Desync detection issue
+description: Tickwise missed a divergence, reported a wrong tick, or misclassified a diff in your simulation.
+title: "desync: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for cases where Tickwise itself got the analysis wrong. If you found a desync in your game and Tickwise reported it correctly, congratulations, that is the tool working. This template is for when the tool fails you.
+  - type: dropdown
+    id: failure-kind
+    attributes:
+      label: What went wrong
+      options:
+        - Tickwise missed a divergence I can prove exists
+        - compare reported the wrong first divergent tick
+        - diff misclassified a difference, for example Structural vs SubEpsilonFloat
+        - Replay verification disagreed with compare
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What Tickwise reported and what you expected. Exact CLI output helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Simulation setup
+      description: Your engine or framework, tick rate, and whether the simulation uses floats or fixed-point math.
+      placeholder: Custom Rust engine on GGRS, 60 ticks per second, f32 physics.
+    validations:
+      required: true
+  - type: textarea
+    id: probe-config
+    attributes:
+      label: Probe and recorder configuration
+      description: What your light hash and full hash cover, the full hash interval, and the snapshot policy.
+      placeholder: light_hash covers entity count + player positions + RNG seed, full_hash_interval 300, snapshots off.
+    validations:
+      required: true
+  - type: input
+    id: platforms
+    attributes:
+      label: Platforms involved
+      description: The platforms the diverging recordings came from.
+      placeholder: Windows 11 x86_64 vs macOS arm64
+    validations:
+      required: true
+  - type: dropdown
+    id: files
+    attributes:
+      label: Can you share the recording files
+      description: Attached .rec and .dump files make these issues far easier to fix.
+      options:
+        - Yes, attached to this issue
+        - Yes, but only privately
+        - No
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: main @ f76530a
+    validations:
+      required: true

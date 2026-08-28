@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in Tickwise itself is broken, crashes, or behaves wrongly.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. A minimal reproduction is worth more than a long description.
+
+        If your simulation desyncs and you are debugging it with Tickwise, that is not a Tickwise bug. Use the desync report template instead, which asks the right questions for that case.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A clear description of the bug.
+      placeholder: tickwise inspect panics when the footer chunk index is truncated.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or code. Attach input files if the bug involves a .rec or .dump file.
+      placeholder: |
+        1. Record a session with snapshot policy Every(1800)
+        2. Truncate the file to 100 bytes
+        3. Run tickwise inspect truncated.rec
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The crate version, or the git commit hash while we are pre-release.
+      placeholder: main @ f76530a
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS, architecture, and Rust version.
+      placeholder: Windows 11 x86_64, rustc 1.89.0
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as logs, feature flags in use, or panic backtraces.
+    validations:
+      required: false

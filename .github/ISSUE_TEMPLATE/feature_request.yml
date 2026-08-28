@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose an addition or improvement to Tickwise.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing, please check the non-goals list in the README. Netcode, rollback engines, engine plugins, GUI tools, and async APIs are settled no-gos for v1.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Tickwise makes hard or impossible today? Describe the problem, not only the solution.
+      placeholder: I need to correlate divergences with gameplay events, but recordings only carry ticks and hashes.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working. API sketches are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve the problem, including workarounds you use today.
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope-check
+    attributes:
+      label: Scope check
+      options:
+        - label: I checked the non-goals list in the README and this request is not on it.
+          required: true
+        - label: I searched existing issues and this has not been proposed before.
+          required: true
