@@ -2,7 +2,9 @@
 
 #![forbid(unsafe_code)]
 
-fn main() {
-    eprintln!("tickwise: no commands are implemented yet, this is the M0 skeleton");
-    std::process::exit(2);
+use std::process::ExitCode;
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    ExitCode::from(tickwise_cli::run(&args))
 }

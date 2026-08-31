@@ -12,5 +12,6 @@ pub mod format;
 pub mod probe;
 pub mod recorder;
 
+pub use format::{SessionMeta, SnapshotPolicy};
 pub use probe::{DeterminismProbe, StateDump};
 pub use recorder::{RecordError, Recorder, RecorderConfig};
