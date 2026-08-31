@@ -129,6 +129,78 @@ fn recorded_session_reads_back_with_the_expected_structure() {
 }
 
 #[test]
+fn constant_inputs_collapse_to_a_single_frame() {
+    let probe = CountingProbe { frame: 0 };
+    let mut rec = Recorder::new(Vec::new(), RecorderConfig::default()).unwrap();
+    for tick in 0..200 {
+        rec.record_tick(tick, &[3, 7], &probe).unwrap();
+    }
+    let bytes = rec.finish().unwrap();
+
+    let mut reader = RecReader::open(Cursor::new(&bytes)).unwrap();
+    let frames: Vec<Chunk> = reader
+        .chunks()
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|c| matches!(c, Chunk::InputFrame { .. }))
+        .collect();
+    assert_eq!(
+        frames,
+        vec![Chunk::InputFrame {
+            tick: 0,
+            data: vec![3, 7],
+        }]
+    );
+}
+
+#[test]
+fn changed_inputs_reconstruct_exactly() {
+    // Inputs change at ticks 0, 10, and 25, including a change to empty.
+    let schedule = |tick: u64| -> Vec<u8> {
+        if tick < 10 {
+            vec![1]
+        } else if tick < 25 {
+            Vec::new()
+        } else {
+            vec![9, 9]
+        }
+    };
+
+    let probe = CountingProbe { frame: 0 };
+    let mut rec = Recorder::new(Vec::new(), RecorderConfig::default()).unwrap();
+    for tick in 0..40 {
+        rec.record_tick(tick, &schedule(tick), &probe).unwrap();
+    }
+    let bytes = rec.finish().unwrap();
+
+    let mut reader = RecReader::open(Cursor::new(&bytes)).unwrap();
+    let frames: Vec<(u64, Vec<u8>)> = reader
+        .chunks()
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|c| match c {
+            Chunk::InputFrame { tick, data } => Some((tick, data)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        frames,
+        vec![(0, vec![1]), (10, Vec::new()), (25, vec![9, 9])]
+    );
+
+    // Expand with the format rule: a frame applies until the next frame.
+    for tick in 0..40u64 {
+        let expanded = frames
+            .iter()
+            .rev()
+            .find(|(t, _)| *t <= tick)
+            .map(|(_, d)| d.clone())
+            .unwrap();
+        assert_eq!(expanded, schedule(tick), "wrong inputs at tick {tick}");
+    }
+}
+
+#[test]
 fn non_sequential_ticks_are_rejected() {
     let probe = CountingProbe { frame: 0 };
     let mut rec = Recorder::new(Vec::new(), RecorderConfig::default()).unwrap();

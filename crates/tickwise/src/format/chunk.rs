@@ -24,9 +24,14 @@ pub mod kind {
 /// One decoded chunk of a `.rec` file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Chunk {
-    /// Opaque input bytes for one tick, decision #11.
+    /// Opaque input bytes, decision #11.
+    ///
+    /// Input frames are repeat suppressed: a frame applies from its tick
+    /// until the tick of the next frame, and the recorder writes a frame
+    /// only when the bytes change. Ticks before the first frame have
+    /// empty inputs.
     InputFrame {
-        /// Tick the inputs apply to.
+        /// First tick the inputs apply to.
         tick: u64,
         /// Opaque input bytes, owned by the user's encoding.
         data: Vec<u8>,

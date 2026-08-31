@@ -129,6 +129,7 @@ pub struct Recorder<W: Write> {
     ticks_recorded: u64,
     batch_first_tick: u64,
     light_hashes: Vec<u64>,
+    last_inputs: Vec<u8>,
     scratch: Vec<u8>,
 }
 
@@ -160,6 +161,7 @@ impl<W: Write> Recorder<W> {
             ticks_recorded: 0,
             batch_first_tick: 0,
             light_hashes: Vec::with_capacity(LIGHT_HASH_BATCH_LEN),
+            last_inputs: Vec::new(),
             scratch: Vec::with_capacity(1024),
         })
     }
@@ -169,12 +171,18 @@ impl<W: Write> Recorder<W> {
     ///
     /// Call exactly once per tick, in tick order. The first call may use
     /// any starting tick, every later call must advance by exactly one.
+    ///
+    /// Input frames are repeat suppressed: a frame is written only when
+    /// the bytes differ from the previous tick, and it applies until the
+    /// next frame. Inputs rarely change, so this is the RLE the format
+    /// promises, at frame granularity.
     pub fn record_tick(
         &mut self,
         tick: u64,
         inputs: &[u8],
         probe: &dyn DeterminismProbe,
     ) -> Result<(), RecordError> {
+        let first_tick_of_session = self.next_tick.is_none();
         if let Some(expected) = self.next_tick
             && tick != expected
         {
@@ -185,11 +193,15 @@ impl<W: Write> Recorder<W> {
         }
         self.next_tick = Some(tick + 1);
 
-        self.scratch.clear();
-        push_u64(&mut self.scratch, tick);
-        self.scratch.extend_from_slice(inputs);
-        self.writer
-            .write_raw_chunk(kind::INPUT_FRAME, tick, &self.scratch)?;
+        if first_tick_of_session || inputs != self.last_inputs.as_slice() {
+            self.scratch.clear();
+            push_u64(&mut self.scratch, tick);
+            self.scratch.extend_from_slice(inputs);
+            self.writer
+                .write_raw_chunk(kind::INPUT_FRAME, tick, &self.scratch)?;
+            self.last_inputs.clear();
+            self.last_inputs.extend_from_slice(inputs);
+        }
 
         if self.light_hashes.is_empty() {
             self.batch_first_tick = tick;
