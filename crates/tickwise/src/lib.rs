@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod format;
 pub mod probe;
 
 pub use probe::{DeterminismProbe, StateDump};
