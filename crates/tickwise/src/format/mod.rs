@@ -15,7 +15,7 @@
 mod chunk;
 mod header;
 mod reader;
-mod wire;
+pub(crate) mod wire;
 mod writer;
 
 pub use chunk::{Chunk, kind};
