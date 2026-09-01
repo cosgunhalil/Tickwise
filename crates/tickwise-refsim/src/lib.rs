@@ -7,8 +7,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod chaos;
 pub mod lcg;
 pub mod world;
 
+pub use chaos::{ChaosConfig, ChaosMode};
 pub use lcg::Lcg;
 pub use world::{Ball, DT, Player, PlayerInput, TICKS_PER_SECOND, Vec2, World, WorldConfig};

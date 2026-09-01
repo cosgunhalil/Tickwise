@@ -6,6 +6,7 @@
 //! addition, subtraction, multiplication, and comparisons. No square
 //! roots, no trigonometry, nothing that could vary across platforms.
 
+use crate::chaos::{ChaosConfig, ChaosMode};
 use crate::lcg::Lcg;
 use tickwise::{DeterminismProbe, StateDump};
 
@@ -64,6 +65,8 @@ pub struct WorldConfig {
     pub player_count: u32,
     /// Seed for the world's random generator.
     pub seed: u64,
+    /// Optional non-determinism injection, see [`ChaosConfig`].
+    pub chaos: Option<ChaosConfig>,
 }
 
 impl Default for WorldConfig {
@@ -74,6 +77,7 @@ impl Default for WorldConfig {
             ball_count: 8,
             player_count: 2,
             seed: 0,
+            chaos: None,
         }
     }
 }
@@ -95,6 +99,7 @@ pub struct World {
     rng: Lcg,
     tick: u64,
     score: u64,
+    scratch: u64,
 }
 
 impl World {
@@ -131,6 +136,14 @@ impl World {
             rng,
             tick: 0,
             score: 0,
+            scratch: 0,
+        }
+    }
+
+    fn active_chaos(&self) -> Option<ChaosMode> {
+        match &self.config.chaos {
+            Some(chaos) if self.tick >= chaos.start_tick => Some(chaos.mode),
+            _ => None,
         }
     }
 
@@ -140,6 +153,17 @@ impl World {
     /// extra inputs are ignored, so replaying a recording with a different
     /// player count stays well defined.
     pub fn step(&mut self, inputs: &[PlayerInput]) {
+        let chaos = self.active_chaos();
+
+        // Chaos: uninit-read. The scratch value is leftover from the
+        // previous tick, and the canonical path never reads it. Reading
+        // it here is the stale-value bug: state that should have been
+        // initialized this tick, but was not. The or with 1 guarantees a
+        // nonzero contribution, so the strike lands on its start tick.
+        if chaos == Some(ChaosMode::UninitRead) {
+            self.score = self.score.wrapping_add(self.scratch | 1);
+        }
+
         for (index, player) in self.players.iter_mut().enumerate() {
             let input = inputs.get(index).copied().unwrap_or_default();
             let dx = input.move_x.clamp(-1, 1) as f32;
@@ -187,6 +211,52 @@ impl World {
                 }
             }
         }
+
+        match chaos {
+            // Chaos: float-drift. One ULP of velocity per tick, the
+            // shape of cross-platform float deviation. Too small for the
+            // light hash to notice, which is exactly the point.
+            Some(ChaosMode::FloatDrift) => {
+                if let Some(ball) = self.balls.first_mut() {
+                    ball.velocity.x *= 1.0 + f32::EPSILON;
+                }
+            }
+            // Chaos: hashmap-iter. Ball contributions folded through a
+            // real HashMap in iteration order, which is random per
+            // process, into an order-sensitive accumulator. This block
+            // deliberately violates the project determinism rules.
+            Some(ChaosMode::HashmapIter) => {
+                let mut map = std::collections::HashMap::new();
+                for (index, ball) in self.balls.iter().enumerate() {
+                    map.insert(index as u64, u64::from(ball.position.x.to_bits()));
+                }
+                let mut acc = self.score;
+                for (key, value) in &map {
+                    acc = acc.rotate_left(7) ^ key.wrapping_mul(31) ^ value;
+                }
+                self.score = acc;
+            }
+            // Chaos: time-dependent. The wall clock reseeds the RNG,
+            // the classic leak of real time into simulated time.
+            Some(ChaosMode::TimeDependent) => {
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos() as u64)
+                    .unwrap_or(0x5EED)
+                    | 1;
+                self.rng = Lcg::new(self.rng.state() ^ nanos);
+            }
+            Some(ChaosMode::UninitRead) | None => {}
+        }
+
+        // The scratch value every tick leaves behind for the next one.
+        // Canonical code never reads it, only the uninit-read chaos does.
+        self.scratch = match self.balls.first() {
+            Some(ball) => {
+                (u64::from(ball.position.x.to_bits()) << 32) | u64::from(ball.velocity.y.to_bits())
+            }
+            None => self.tick | 1,
+        };
 
         self.tick += 1;
     }
