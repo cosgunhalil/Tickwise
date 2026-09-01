@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod compare;
 pub mod inspect;
 
 const USAGE: &str = "\
@@ -13,8 +14,10 @@ Tickwise: record, replay, and diff deterministic simulations.
 
 Usage:
   tickwise inspect <session.rec>    show metadata and statistics for a recording
-  tickwise compare <a.rec> <b.rec>  find the first divergent tick, arrives with M2
+  tickwise compare <a.rec> <b.rec>  find the first divergent tick
   tickwise diff <a.dump> <b.dump>   field-level structural diff, arrives with M3
+
+Compare exit codes: 0 identical, 1 diverged, 2 trouble.
 
 Options:
   -h, --help       show this help
@@ -46,10 +49,22 @@ pub fn run(args: &[String]) -> u8 {
                 2
             }
         },
-        "compare" => {
-            eprintln!("tickwise compare is not implemented yet, it arrives with M2");
-            1
-        }
+        "compare" => match rest {
+            [a, b] => match compare::render(a, b) {
+                Ok(output) => {
+                    print!("{}", output.text);
+                    u8::from(output.diverged)
+                }
+                Err(err) => {
+                    eprintln!("tickwise compare: {err}");
+                    2
+                }
+            },
+            _ => {
+                eprintln!("usage: tickwise compare <a.rec> <b.rec>");
+                2
+            }
+        },
         "diff" => {
             eprintln!("tickwise diff is not implemented yet, it arrives with M3");
             1

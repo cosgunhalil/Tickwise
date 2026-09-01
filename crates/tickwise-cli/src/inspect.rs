@@ -172,8 +172,8 @@ pub fn render<P: AsRef<Path>>(path: P) -> Result<Report, FormatError> {
     }
     s.push_str(&format!("  integrity      {checksum_line}\n"));
     s.push_str(
-        "  next           record a second session, then find the first divergent tick\n\
-         \x20                with tickwise compare, which arrives with M2\n",
+        "  next           record a second session, then find the first divergent tick:\n\
+         \x20                tickwise compare a.rec b.rec\n",
     );
 
     Ok(Report { text: s, corrupt })

@@ -118,7 +118,7 @@ fn cli_run_dispatches_and_reports_usage() {
     assert_eq!(tickwise_cli::run(&["help".to_string()]), 0);
     assert_eq!(tickwise_cli::run(&["--version".to_string()]), 0);
     assert_eq!(tickwise_cli::run(&["nonsense".to_string()]), 2);
-    assert_eq!(tickwise_cli::run(&["compare".to_string()]), 1);
+    assert_eq!(tickwise_cli::run(&["compare".to_string()]), 2);
     assert_eq!(tickwise_cli::run(&["inspect".to_string()]), 2);
 
     let path = temp_path("cli.rec");
