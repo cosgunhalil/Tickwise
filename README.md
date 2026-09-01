@@ -4,7 +4,20 @@
 
 Tickwise is an engine-agnostic recording, replay, and desync-debugging toolkit for deterministic multiplayer games, written in Rust. Determinism is a promise that must be verified every single tick, and Tickwise exists to make that vigilance cheap.
 
-> ⚠️ **Status: early development, pre-release.** The API and the recording format may change freely until 1.0. Nothing is published to crates.io yet. The crate name will be claimed with the first working 0.1.0, never with an empty placeholder.
+> ⚠️ **Status: early development.** Version 0.1.0 is on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli), covering recording and the inspect command. The compare and diff workflow arrives with M2 and M3. The API and the recording format may change freely until 1.0.
+
+## Try it
+
+```
+cargo add tickwise            # the recording library
+cargo install tickwise-cli    # the tickwise binary
+```
+
+Record a session in your own game loop, then look inside it:
+
+```
+tickwise inspect session.rec
+```
 
 ## The problem
 
