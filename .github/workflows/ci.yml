@@ -56,4 +56,24 @@ jobs:
           cargo run -p tickwise-refsim --example record_demo -- fuzz/corpus/rec_reader/seed.rec
 
       - name: Run the fuzzer
-        run: cargo fuzz run rec_reader -- -max_total_time=60
+        run: |
+          set -o pipefail
+          cargo fuzz run rec_reader --target x86_64-unknown-linux-gnu -- -max_total_time=60 2>&1 | tee fuzz-output.log
+
+      - name: Summarize the failure
+        if: failure()
+        run: |
+          echo '## Fuzz failure' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 60 fuzz-output.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-artifacts
+          path: |
+            fuzz/artifacts/
+            fuzz-output.log
+          if-no-files-found: ignore

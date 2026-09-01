@@ -1,6 +1,7 @@
 [package]
 name = "tickwise-cli"
 description = "Command line tool for Tickwise: compare, diff, and inspect deterministic simulation recordings"
+readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
