@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod compare;
 pub mod format;
 pub mod probe;
 pub mod recorder;
