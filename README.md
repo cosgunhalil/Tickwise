@@ -54,7 +54,13 @@ Tickwise is an observer. It never runs your simulation. You drive your own game 
 └───────────────────────────────────────────────────────────┘
 ```
 
-There is an even simpler entry point: the **self-check**. Replay your own recording twice on one machine and compare hashes. If they differ, your simulation is not deterministic, and you just found out before your players did.
+There is an even simpler entry point: the **self-check**. Play a session once, replay its recorded inputs through your simulation, record that too, and compare:
+
+```
+tickwise compare original.rec replayed.rec
+```
+
+If the verdict is anything but identical, your simulation is not deterministic, and you just found out before your players did.
 
 ## CLI
 
