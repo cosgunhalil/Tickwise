@@ -1,0 +1,14 @@
+[package]
+name = "tickwise-ggrs-ex-game"
+description = "Tickwise integration against the GGRS ex_game example, the first foreign-code validation"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+ggrs = "0.13"
+serde = { version = "1", features = ["derive"] }
+tickwise = { path = "../../crates/tickwise", features = ["serde"] }
+
+[workspace]
