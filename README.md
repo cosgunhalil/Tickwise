@@ -4,19 +4,41 @@
 
 Tickwise is an engine-agnostic recording, replay, and desync-debugging toolkit for deterministic multiplayer games, written in Rust. Determinism is a promise that must be verified every single tick, and Tickwise exists to make that vigilance cheap.
 
-> ⚠️ **Status: early development.** Version 0.1.0 is on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli), covering recording and the inspect command. The compare and diff workflow arrives with M2 and M3. The API and the recording format may change freely until 1.0.
+> ⚠️ **Status: early development.** Version 0.2.0 is on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli) and covers the full two-pass workflow: record, compare, replay, diff. The API and the recording format may change freely until 1.0.
 
 ## Try it
 
 ```
-cargo add tickwise            # the recording library
-cargo install tickwise-cli    # the tickwise binary
+cargo add tickwise --features serde    # the library, with the serde convenience layer
+cargo install tickwise-cli             # the tickwise binary
 ```
 
-Record a session in your own game loop, then look inside it:
+With the `serde` feature, any `Serialize` state becomes a probe in a few lines:
+
+```rust
+use serde::Serialize;
+use tickwise::serde_probe::SerdeProbe;
+use tickwise::{Recorder, RecorderConfig};
+
+#[derive(Serialize)]
+struct Game { tick: u64, score: u64, positions: Vec<(f32, f32)> }
+
+let mut game = Game { tick: 0, score: 0, positions: vec![(0.0, 0.0)] };
+let mut rec = Recorder::create("session.rec", RecorderConfig::default())?;
+for tick in 0..600 {
+    let input = (1u8, 0u8);         // your own input type
+    game.tick += 1;                 // your own simulation step
+    rec.record_tick_typed(tick, &input, &SerdeProbe::new(&game))?;
+}
+rec.finish()?;
+```
+
+Performance-sensitive code implements the three-method `DeterminismProbe` trait by hand instead. Then the CLI takes over:
 
 ```
-tickwise inspect session.rec
+tickwise inspect session.rec        # what is in a recording
+tickwise compare a.rec b.rec        # first divergent tick between two sessions
+tickwise diff a.dump b.dump         # field-level differences at that tick
 ```
 
 ## The problem
@@ -88,13 +110,13 @@ rr records execution at the syscall level. Tickwise records simulation at the ti
 
 ## Roadmap
 
-| Milestone | Content | Definition of done |
-|---|---|---|
-| **M0** | Workspace skeleton, probe trait, reference simulation | Refsim runs 10k ticks deterministically, CI green |
-| **M1** | Recorder, `.rec` format, `inspect` | Recording round-trip tests pass, 0.1.0 on crates.io |
-| **M2** | `compare` for first divergence, chaos flags | All chaos classes caught at the correct tick |
-| **M3** | Replayer, dumps, `diff`, serde layer | Two-pass workflow end-to-end |
-| **M4** | Launch package: docs, examples, tutorial | A stranger finds their first desync in 15 minutes, unaided |
+| Milestone | Content | Definition of done | Status |
+|---|---|---|---|
+| **M0** | Workspace skeleton, probe trait, reference simulation | Refsim runs 10k ticks deterministically, CI green | ✓ |
+| **M1** | Recorder, `.rec` format, `inspect` | Recording round-trip tests pass, 0.1.0 on crates.io | ✓ |
+| **M2** | `compare` for first divergence, chaos flags | All chaos classes caught at the correct tick | ✓ |
+| **M3** | Replayer, dumps, `diff`, serde layer, GGRS integration | Two-pass workflow end-to-end, 0.2.0 on crates.io | ✓ |
+| **M4** | Launch package: docs, examples, tutorial, benchmarks | A stranger finds their first desync in 15 minutes, unaided | in progress |
 
 ## Non-goals
 

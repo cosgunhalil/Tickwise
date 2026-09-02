@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "tickwise"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "postcard",
@@ -194,14 +194,14 @@ dependencies = [
 
 [[package]]
 name = "tickwise-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "tickwise",
 ]
 
 [[package]]
 name = "tickwise-refsim"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "tickwise",
 ]
