@@ -71,9 +71,8 @@ pub fn render<A: AsRef<Path>, B: AsRef<Path>>(a: A, b: B) -> Result<CompareOutpu
         Outcome::Diverged(d) => {
             s.push_str(&format!(
                 "  next           Pass 2: replay each recording in your own loop with\n\
-                 \x20                dump_at_ticks = [{}] to produce two .dump files,\n\
-                 \x20                then run tickwise diff on them. The replayer and the\n\
-                 \x20                diff command arrive with M3\n",
+                 \x20                dump_at_ticks = [{}] to produce two .dump files, then run\n\
+                 \x20                tickwise diff a.dump b.dump\n",
                 d.tick
             ));
             true

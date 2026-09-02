@@ -183,17 +183,21 @@ pub struct Difference {
     pub detail: Detail,
 }
 
+impl std::fmt::Display for Detail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OnlyOn { side, value } => write!(f, "only in the {side} dump, value {value}"),
+            Self::LengthMismatch { a, b } => write!(f, "length {a} versus {b}"),
+            Self::TypeMismatch { a, b } => write!(f, "type {a} versus {b}"),
+            Self::ValueMismatch { a, b } => write!(f, "{a} versus {b}"),
+            Self::FloatDelta { a, b, delta } => write!(f, "{a} versus {b}, delta {delta:e}"),
+        }
+    }
+}
+
 impl std::fmt::Display for Difference {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: ", self.path)?;
-        match &self.detail {
-            Detail::OnlyOn { side, value } => write!(f, "only in the {side} dump, value {value}")?,
-            Detail::LengthMismatch { a, b } => write!(f, "length {a} versus {b}")?,
-            Detail::TypeMismatch { a, b } => write!(f, "type {a} versus {b}")?,
-            Detail::ValueMismatch { a, b } => write!(f, "{a} versus {b}")?,
-            Detail::FloatDelta { a, b, delta } => write!(f, "{a} versus {b}, delta {delta:e}")?,
-        }
-        write!(f, ", {}", self.class)
+        write!(f, "{}: {}, {}", self.path, self.detail, self.class)
     }
 }
 
