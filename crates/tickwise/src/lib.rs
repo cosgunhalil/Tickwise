@@ -13,8 +13,10 @@ pub mod dump;
 pub mod format;
 pub mod probe;
 pub mod recorder;
+pub mod replayer;
 
 pub use dump::{StateDump, Value};
 pub use format::{SessionMeta, SnapshotPolicy};
 pub use probe::DeterminismProbe;
 pub use recorder::{RecordError, Recorder, RecorderConfig};
+pub use replayer::{ReplayConfig, ReplayError, Replayer};
