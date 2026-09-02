@@ -9,6 +9,7 @@
 #![warn(missing_docs)]
 
 pub mod compare;
+pub mod diff;
 pub mod dump;
 pub mod format;
 pub mod probe;
