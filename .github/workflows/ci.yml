@@ -33,8 +33,14 @@ jobs:
       - name: Lint with warnings as errors
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Run tests
+      - name: Lint with every feature enabled
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests with default features
         run: cargo test
+
+      - name: Run tests with every feature enabled
+        run: cargo test --all-features
 
   fuzz-smoke:
     name: fuzz the .rec reader for 60 seconds

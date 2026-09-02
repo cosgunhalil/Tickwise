@@ -15,6 +15,8 @@ pub mod format;
 pub mod probe;
 pub mod recorder;
 pub mod replayer;
+#[cfg(feature = "serde")]
+pub mod serde_probe;
 
 pub use dump::{StateDump, Value};
 pub use format::{SessionMeta, SnapshotPolicy};

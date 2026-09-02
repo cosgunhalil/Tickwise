@@ -10,4 +10,22 @@ rust-version.workspace = true
 keywords = ["determinism", "replay", "desync", "gamedev", "debugging"]
 categories = ["game-development", "development-tools::debugging"]
 
+[features]
+# The convenience layer: automatic probes and typed inputs for any
+# serde Serialize type. Decisions #11, #12, and #15 keep every
+# serialization and hashing crate behind this flag.
+serde = ["dep:serde", "dep:postcard", "dep:xxhash-rust"]
+# Adds blake3 as an alternative hash for audit scenarios.
+blake3 = ["serde", "dep:blake3"]
+
 [dependencies]
+serde = { version = "1", optional = true }
+postcard = { version = "1", optional = true, default-features = false, features = ["alloc"] }
+xxhash-rust = { version = "0.8", optional = true, features = ["xxh3"] }
+blake3 = { version = "1", optional = true }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[package.metadata.docs.rs]
+all-features = true

@@ -25,6 +25,9 @@ pub enum RecordError {
         /// The tick it was given.
         got: u64,
     },
+    /// Serializing typed inputs failed.
+    #[cfg(feature = "serde")]
+    InputEncode(postcard::Error),
 }
 
 impl std::fmt::Display for RecordError {
@@ -36,6 +39,8 @@ impl std::fmt::Display for RecordError {
                 "non-sequential tick: expected {expected}, got {got}, \
                  record_tick must be called once per tick in order"
             ),
+            #[cfg(feature = "serde")]
+            Self::InputEncode(err) => write!(f, "cannot encode typed inputs: {err}"),
         }
     }
 }
@@ -45,6 +50,8 @@ impl std::error::Error for RecordError {
         match self {
             Self::Format(err) => Some(err),
             Self::NonSequentialTick { .. } => None,
+            #[cfg(feature = "serde")]
+            Self::InputEncode(err) => Some(err),
         }
     }
 }
@@ -221,6 +228,23 @@ impl<W: Write> Recorder<W> {
 
         self.ticks_recorded += 1;
         Ok(())
+    }
+
+    /// Records one tick with typed inputs, serialized through postcard.
+    ///
+    /// The convenience twin of [`record_tick`](Recorder::record_tick).
+    /// Set [`RecorderConfig::input_format_id`] from
+    /// [`serde_probe::format_id`](crate::serde_probe::format_id) so the
+    /// replayer can refuse recordings made with an older input type.
+    #[cfg(feature = "serde")]
+    pub fn record_tick_typed<I: serde::Serialize + ?Sized>(
+        &mut self,
+        tick: u64,
+        inputs: &I,
+        probe: &dyn DeterminismProbe,
+    ) -> Result<(), RecordError> {
+        let bytes = postcard::to_allocvec(inputs).map_err(RecordError::InputEncode)?;
+        self.record_tick(tick, &bytes, probe)
     }
 
     /// Returns true when the snapshot policy asks for a snapshot at this

@@ -139,7 +139,7 @@ pub struct Step<'a> {
     inputs: &'a [u8],
 }
 
-impl Step<'_> {
+impl<'a> Step<'a> {
     /// The tick to simulate.
     pub fn tick(&self) -> u64 {
         self.tick
@@ -148,6 +148,13 @@ impl Step<'_> {
     /// The opaque input bytes recorded for this tick.
     pub fn inputs(&self) -> &[u8] {
         self.inputs
+    }
+
+    /// Decodes the inputs as the type they were recorded with through
+    /// [`Recorder::record_tick_typed`](crate::Recorder::record_tick_typed).
+    #[cfg(feature = "serde")]
+    pub fn inputs_typed<I: serde::Deserialize<'a>>(&self) -> Result<I, postcard::Error> {
+        postcard::from_bytes(self.inputs)
     }
 }
 
