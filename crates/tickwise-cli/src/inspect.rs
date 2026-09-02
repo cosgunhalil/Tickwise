@@ -30,6 +30,7 @@ pub fn render<P: AsRef<Path>>(path: P) -> Result<Report, FormatError> {
     let mut full_hashes: u64 = 0;
     let mut snapshot_ticks: Vec<u64> = Vec::new();
     let mut markers: u64 = 0;
+    let mut dump_ticks: Vec<u64> = Vec::new();
     let mut unknown_chunks: u64 = 0;
     let mut stream_error: Option<FormatError> = None;
 
@@ -43,6 +44,7 @@ pub fn render<P: AsRef<Path>>(path: P) -> Result<Report, FormatError> {
             Ok(Chunk::FullHash { .. }) => full_hashes += 1,
             Ok(Chunk::Snapshot { tick, .. }) => snapshot_ticks.push(tick),
             Ok(Chunk::Marker { .. }) => markers += 1,
+            Ok(Chunk::StateDump { tick, .. }) => dump_ticks.push(tick),
             Ok(Chunk::Unknown { .. }) => unknown_chunks += 1,
             Err(err) => {
                 stream_error = Some(err);
@@ -149,6 +151,14 @@ pub fn render<P: AsRef<Path>>(path: P) -> Result<Report, FormatError> {
         bytes_by_kind.get(&kind::MARKER),
         "",
     ));
+    if !dump_ticks.is_empty() {
+        s.push_str(&row(
+            "state dumps",
+            dump_ticks.len() as u64,
+            bytes_by_kind.get(&kind::STATE_DUMP),
+            &snapshot_note(&dump_ticks),
+        ));
+    }
     if unknown_chunks > 0 {
         let unknown_bytes: u64 = bytes_by_kind
             .iter()
@@ -187,6 +197,7 @@ fn is_known_kind(id: u16) -> bool {
             | kind::FULL_HASH
             | kind::SNAPSHOT
             | kind::MARKER
+            | kind::STATE_DUMP
     )
 }
 

@@ -4,6 +4,8 @@
 //! Tickwise. Everything else in the kit is built on top of these three
 //! callbacks.
 
+pub use crate::dump::StateDump;
+
 /// The single contract between the user's simulation and Tickwise.
 ///
 /// Tickwise is an observer. The user drives their own game loop and calls
@@ -66,26 +68,6 @@ pub trait DeterminismProbe {
     /// dumping. This is the expensive path and it is allowed to be: it runs
     /// a handful of times per session, not every tick.
     fn state_dump(&self) -> StateDump;
-}
-
-/// A structural, diffable representation of simulation state.
-///
-/// Conceptually a tree of field paths mapped to typed values, which the
-/// diff engine walks to report field-level differences.
-///
-/// The internal representation is deliberately undecided until M3, so this
-/// type is opaque: it can be created empty and passed around, and nothing
-/// else. Do not rely on its layout.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct StateDump {
-    _placeholder: (),
-}
-
-impl StateDump {
-    /// Creates an empty dump with no recorded fields.
-    pub fn empty() -> Self {
-        Self::default()
-    }
 }
 
 #[cfg(test)]

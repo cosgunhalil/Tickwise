@@ -7,6 +7,7 @@ use std::io::Cursor;
 use tickwise::format::{
     Chunk, ConfigEcho, FormatError, Header, RecReader, RecWriter, SessionMeta, SnapshotPolicy,
 };
+use tickwise::{StateDump, Value};
 
 fn sample_header() -> Header {
     Header {
@@ -48,6 +49,22 @@ fn sample_chunks() -> Vec<Chunk> {
         Chunk::Snapshot {
             tick: 1800,
             data: vec![7; 256],
+        },
+        Chunk::StateDump {
+            tick: 4021,
+            dump: {
+                let mut dump = StateDump::empty();
+                dump.insert("players", Value::Len(2));
+                dump.insert("players[0].velocity.x", 3.5f32);
+                // One ULP above 3.5, a genuine sub-epsilon neighbor.
+                dump.insert(
+                    "players[1].velocity.x",
+                    f32::from_bits(3.5f32.to_bits() + 1),
+                );
+                dump.insert("projectiles", Value::Len(14));
+                dump.insert("label", "round 3");
+                dump
+            },
         },
     ]
 }

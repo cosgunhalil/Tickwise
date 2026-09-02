@@ -8,7 +8,7 @@
 
 use crate::chaos::{ChaosConfig, ChaosMode};
 use crate::lcg::Lcg;
-use tickwise::{DeterminismProbe, StateDump};
+use tickwise::{DeterminismProbe, StateDump, Value};
 
 /// Fixed simulation rate in ticks per second.
 pub const TICKS_PER_SECOND: u32 = 60;
@@ -340,7 +340,25 @@ impl DeterminismProbe for World {
     }
 
     fn state_dump(&self) -> StateDump {
-        StateDump::empty()
+        let mut dump = StateDump::empty();
+        dump.insert("tick", self.tick);
+        dump.insert("score", self.score);
+        dump.insert("rng.state", self.rng.state());
+
+        dump.insert("balls", Value::Len(self.balls.len() as u64));
+        for (i, ball) in self.balls.iter().enumerate() {
+            dump.insert(format!("balls[{i}].position.x"), ball.position.x);
+            dump.insert(format!("balls[{i}].position.y"), ball.position.y);
+            dump.insert(format!("balls[{i}].velocity.x"), ball.velocity.x);
+            dump.insert(format!("balls[{i}].velocity.y"), ball.velocity.y);
+        }
+
+        dump.insert("players", Value::Len(self.players.len() as u64));
+        for (i, player) in self.players.iter().enumerate() {
+            dump.insert(format!("players[{i}].position.x"), player.position.x);
+            dump.insert(format!("players[{i}].position.y"), player.position.y);
+        }
+        dump
     }
 }
 
@@ -391,6 +409,32 @@ mod tests {
             assert!(ball.position.y >= BALL_RADIUS - f32::EPSILON);
             assert!(ball.position.y <= config.height - BALL_RADIUS + f32::EPSILON);
         }
+    }
+
+    #[test]
+    fn state_dump_covers_every_entity_and_matches_between_twins() {
+        let config = WorldConfig::default();
+        let mut a = World::new(config.clone());
+        let mut b = World::new(config.clone());
+        for _ in 0..100 {
+            a.step(&[]);
+            b.step(&[]);
+        }
+
+        let dump = a.state_dump();
+        // 3 scalars, 1 length + 4 fields per ball, 1 length + 2 per player.
+        let expected =
+            3 + 1 + 4 * config.ball_count as usize + 1 + 2 * config.player_count as usize;
+        assert_eq!(dump.len(), expected);
+        assert_eq!(dump.get("tick"), Some(&Value::U64(100)));
+        assert_eq!(
+            dump.get("balls"),
+            Some(&Value::Len(u64::from(config.ball_count)))
+        );
+        assert_eq!(dump, b.state_dump());
+
+        b.step(&[]);
+        assert_ne!(dump, b.state_dump());
     }
 
     #[test]

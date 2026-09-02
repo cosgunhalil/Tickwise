@@ -6,6 +6,7 @@
 
 use super::FormatError;
 use super::wire::{SliceReader, push_str, push_u32, push_u64};
+use crate::dump::{StateDump, decode_dump, encode_dump};
 
 /// Well-known chunk kind ids.
 pub mod kind {
@@ -19,10 +20,12 @@ pub mod kind {
     pub const SNAPSHOT: u16 = 4;
     /// A user-placed label at one tick.
     pub const MARKER: u16 = 5;
+    /// A structural state dump at one tick, the payload of `.dump` files.
+    pub const STATE_DUMP: u16 = 6;
 }
 
-/// One decoded chunk of a `.rec` file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One decoded chunk of a `.rec` or `.dump` file.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Chunk {
     /// Opaque input bytes, decision #11.
     ///
@@ -64,6 +67,13 @@ pub enum Chunk {
         /// Human-readable label.
         label: String,
     },
+    /// A structural state dump produced during Pass 2 replay.
+    StateDump {
+        /// Tick the dump was taken at.
+        tick: u64,
+        /// The dumped state.
+        dump: StateDump,
+    },
     /// A chunk kind this build does not know. Preserved, never an error.
     Unknown {
         /// The unrecognized kind id.
@@ -82,6 +92,7 @@ impl Chunk {
             Self::FullHash { .. } => kind::FULL_HASH,
             Self::Snapshot { .. } => kind::SNAPSHOT,
             Self::Marker { .. } => kind::MARKER,
+            Self::StateDump { .. } => kind::STATE_DUMP,
             Self::Unknown { kind, .. } => *kind,
         }
     }
@@ -92,7 +103,8 @@ impl Chunk {
             Self::InputFrame { tick, .. }
             | Self::FullHash { tick, .. }
             | Self::Snapshot { tick, .. }
-            | Self::Marker { tick, .. } => *tick,
+            | Self::Marker { tick, .. }
+            | Self::StateDump { tick, .. } => *tick,
             Self::LightHashBatch { first_tick, .. } => *first_tick,
             Self::Unknown { .. } => 0,
         }
@@ -124,6 +136,10 @@ impl Chunk {
             Self::Marker { tick, label } => {
                 push_u64(&mut out, *tick);
                 push_str(&mut out, label)?;
+            }
+            Self::StateDump { tick, dump } => {
+                push_u64(&mut out, *tick);
+                encode_dump(dump, &mut out)?;
             }
             Self::Unknown { payload, .. } => {
                 out.extend_from_slice(payload);
@@ -175,6 +191,14 @@ impl Chunk {
                 }
                 Ok(chunk)
             }
+            kind::STATE_DUMP => {
+                let tick = reader.u64()?;
+                let dump = decode_dump(&mut reader)?;
+                if !reader.is_done() {
+                    return Err(FormatError::Corrupt("trailing bytes in state dump"));
+                }
+                Ok(Self::StateDump { tick, dump })
+            }
             other => Ok(Self::Unknown {
                 kind: other,
                 payload,
@@ -219,6 +243,10 @@ mod tests {
             tick: 4021,
             label: "round start".to_string(),
         });
+        let mut dump = StateDump::empty();
+        dump.insert("players", crate::dump::Value::Len(1));
+        dump.insert("players[0].velocity.x", 3.5f32);
+        round_trip(Chunk::StateDump { tick: 4021, dump });
         round_trip(Chunk::Unknown {
             kind: 999,
             payload: vec![0xAB; 10],

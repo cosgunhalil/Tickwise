@@ -9,10 +9,12 @@
 #![warn(missing_docs)]
 
 pub mod compare;
+pub mod dump;
 pub mod format;
 pub mod probe;
 pub mod recorder;
 
+pub use dump::{StateDump, Value};
 pub use format::{SessionMeta, SnapshotPolicy};
-pub use probe::{DeterminismProbe, StateDump};
+pub use probe::DeterminismProbe;
 pub use recorder::{RecordError, Recorder, RecorderConfig};

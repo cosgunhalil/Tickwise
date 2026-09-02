@@ -87,6 +87,7 @@ fn recorded_session_reads_back_with_the_expected_structure() {
                 snapshots.push(*tick);
             }
             Chunk::Marker { tick, label } => markers.push((*tick, label.clone())),
+            Chunk::StateDump { .. } => panic!("recorder wrote a state dump, that is replay work"),
             Chunk::Unknown { .. } => panic!("recorder wrote an unknown chunk"),
         }
     }
