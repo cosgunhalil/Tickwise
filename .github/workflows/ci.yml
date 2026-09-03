@@ -72,6 +72,12 @@ jobs:
       - name: Run the integration tests
         run: cargo test --manifest-path integrations/ggrs-ex-game/Cargo.toml
 
+      - name: Check the bones ecs integration
+        run: |
+          cargo fmt --manifest-path integrations/bones-ecs/Cargo.toml --all --check
+          cargo clippy --manifest-path integrations/bones-ecs/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path integrations/bones-ecs/Cargo.toml
+
   fuzz-smoke:
     name: fuzz the .rec reader for 60 seconds
     runs-on: ubuntu-latest

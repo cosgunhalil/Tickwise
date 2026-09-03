@@ -1,0 +1,13 @@
+[package]
+name = "tickwise-bones-ecs"
+description = "Tickwise probe for any Bones ECS world, walking component and resource schemas at runtime"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+bones_ecs = "0.4"
+tickwise = { path = "../../crates/tickwise" }
+
+[workspace]
