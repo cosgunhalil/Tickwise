@@ -41,7 +41,7 @@ tickwise compare a.rec b.rec        # first divergent tick between two sessions
 tickwise diff a.dump b.dump         # field-level differences at that tick
 ```
 
-New here? [Find your first desync in 15 minutes](docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named.
+New here? [Find your first desync in 15 minutes](docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named. Wiring up your own game? The [hash coverage checklist](docs/hash-coverage.md) says what belongs in each hash and why.
 
 ## The problem
 

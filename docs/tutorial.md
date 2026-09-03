@@ -236,6 +236,6 @@ rec.finish()?;
 
 **Comparing and diffing** need no code at all, only the CLI.
 
-Two things to get right. First, what your light hash covers decides what compare can catch on the first tick; the blind spot report in step 6 is the tool telling you a field is missing from it. Second, your input encoding is yours, so declare an input format id in the recorder config and the replayer will refuse recordings made with an older encoding instead of feeding them to the wrong decoder.
+Two things to get right. First, what your light hash covers decides what compare can catch on the first tick; the blind spot report in step 6 is the tool telling you a field is missing from it. The [hash coverage checklist](hash-coverage.md) walks through what belongs in each layer. Second, your input encoding is yours, so declare an input format id in the recorder config and the replayer will refuse recordings made with an older encoding instead of feeding them to the wrong decoder.
 
 From here, the API reference on docs.rs covers every type, and the README lists what Tickwise deliberately does not do.
