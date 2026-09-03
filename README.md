@@ -41,6 +41,8 @@ tickwise compare a.rec b.rec        # first divergent tick between two sessions
 tickwise diff a.dump b.dump         # field-level differences at that tick
 ```
 
+New here? [Find your first desync in 15 minutes](docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named.
+
 ## The problem
 
 Deterministic simulation is the foundation of lockstep and rollback netcode. Every client runs the same simulation from the same inputs and must arrive at the same state. When that promise breaks, even by a single divergent bit, two players fork into different realities. This failure mode is called a desync, and it is uniquely expensive to debug for three reasons.
