@@ -33,7 +33,7 @@ for tick in 0..600 {
 rec.finish()?;
 ```
 
-Performance-sensitive code implements the three-method `DeterminismProbe` trait by hand instead. Then the CLI takes over:
+Performance-sensitive code implements the three-method `DeterminismProbe` trait by hand instead. Both paths are shown end to end, record, compare, replay, and diff in one file each, in [crates/tickwise/examples](crates/tickwise/examples). Then the CLI takes over:
 
 ```
 tickwise inspect session.rec        # what is in a recording
