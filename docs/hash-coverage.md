@@ -39,7 +39,7 @@ The light hash is a digest, not a copy. Aim for a handful of values that change 
 - [ ] Score or an equivalent game-level aggregate.
 - [ ] A rotating sample: hash one full entity per tick, cycling through them by tick index. Over a few hundred ticks every entity gets covered, at the cost of hashing one entity per tick. This is the best trick available for large worlds.
 
-Do not try to make the light hash complete. That is what the full hash is for, and a complete light hash blows the budget in exactly the games that need Tickwise most.
+Do not try to make the light hash complete. That is what the full hash is for, and a complete light hash blows the budget in exactly the games that need Tickwise most. The [light hash budget guide](light-hash-budget.md) shows how to measure against the 1 percent rule and what the reference simulation measures at.
 
 ## Reading a blind spot report
 

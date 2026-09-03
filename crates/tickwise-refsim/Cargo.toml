@@ -10,3 +10,10 @@ publish = false
 
 [dependencies]
 tickwise.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "tick_budget"
+harness = false
