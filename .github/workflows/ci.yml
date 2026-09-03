@@ -42,6 +42,11 @@ jobs:
       - name: Run tests with every feature enabled
         run: cargo test --all-features
 
+      - name: Build documentation with warnings denied
+        run: cargo doc --workspace --lib --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
   integrations:
     name: ggrs ex_game integration on ubuntu-latest
     runs-on: ubuntu-latest
