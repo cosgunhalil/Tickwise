@@ -223,7 +223,7 @@ fn input_for(tick: u64) -> Input {
     Input {
         dx: ((tick / 7) % 3) as i8 - 1,
         dy: ((tick / 11) % 3) as i8 - 1,
-        jump: tick % 13 == 0,
+        jump: tick.is_multiple_of(13),
     }
 }
 

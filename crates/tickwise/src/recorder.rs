@@ -218,7 +218,7 @@ impl<W: Write> Recorder<W> {
             self.flush_light_hashes()?;
         }
 
-        if self.full_hash_interval > 0 && tick % u64::from(self.full_hash_interval) == 0 {
+        if self.full_hash_interval > 0 && tick.is_multiple_of(u64::from(self.full_hash_interval)) {
             self.scratch.clear();
             push_u64(&mut self.scratch, tick);
             push_u64(&mut self.scratch, probe.full_hash());
@@ -254,7 +254,7 @@ impl<W: Write> Recorder<W> {
     pub fn wants_snapshot(&self, tick: u64) -> bool {
         match self.snapshot {
             SnapshotPolicy::Off => false,
-            SnapshotPolicy::Every(n) => n > 0 && tick % u64::from(n) == 0,
+            SnapshotPolicy::Every(n) => n > 0 && tick.is_multiple_of(u64::from(n)),
         }
     }
 

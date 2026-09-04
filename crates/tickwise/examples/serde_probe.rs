@@ -49,7 +49,7 @@ struct LightView {
 
 fn input_for(tick: u64) -> Input {
     Input {
-        thrust: (tick / 10) % 2 == 0,
+        thrust: (tick / 10).is_multiple_of(2),
         turn: ((tick / 7) % 3) as i8 - 1,
     }
 }
