@@ -1,5 +1,10 @@
 # Tickwise
 
+[![crates.io](https://img.shields.io/crates/v/tickwise.svg)](https://crates.io/crates/tickwise)
+[![docs.rs](https://docs.rs/tickwise/badge.svg)](https://docs.rs/tickwise)
+[![CI](https://github.com/cosgunhalil/Tickwise/actions/workflows/ci.yml/badge.svg)](https://github.com/cosgunhalil/Tickwise/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/cosgunhalil/Tickwise#license)
+
 **Record, replay, and diff deterministic simulations.**
 
 Tickwise is an engine-agnostic recording, replay, and desync-debugging toolkit for deterministic multiplayer games, written in Rust. Determinism is a promise that must be verified every single tick, and Tickwise exists to make that vigilance cheap.
@@ -33,7 +38,7 @@ for tick in 0..600 {
 rec.finish()?;
 ```
 
-Performance-sensitive code implements the three-method `DeterminismProbe` trait by hand instead. Both paths are shown end to end, record, compare, replay, and diff in one file each, in [crates/tickwise/examples](crates/tickwise/examples). Then the CLI takes over:
+Performance-sensitive code implements the three-method `DeterminismProbe` trait by hand instead. Both paths are shown end to end, record, compare, replay, and diff in one file each, in [crates/tickwise/examples](https://github.com/cosgunhalil/Tickwise/tree/main/crates/tickwise/examples). Then the CLI takes over:
 
 ```
 tickwise inspect session.rec        # what is in a recording
@@ -41,7 +46,7 @@ tickwise compare a.rec b.rec        # first divergent tick between two sessions
 tickwise diff a.dump b.dump         # field-level differences at that tick
 ```
 
-New here? [Find your first desync in 15 minutes](docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named. Wiring up your own game? The [hash coverage checklist](docs/hash-coverage.md) says what belongs in each hash and why, and the [light hash budget guide](docs/light-hash-budget.md) shows the measured per-tick cost, 20 nanoseconds for the recorder itself.
+New here? [Find your first desync in 15 minutes](https://github.com/cosgunhalil/Tickwise/blob/main/docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named. Wiring up your own game? The [hash coverage checklist](https://github.com/cosgunhalil/Tickwise/blob/main/docs/hash-coverage.md) says what belongs in each hash and why, and the [light hash budget guide](https://github.com/cosgunhalil/Tickwise/blob/main/docs/light-hash-budget.md) shows the measured per-tick cost, 20 nanoseconds for the recorder itself.
 
 ## The problem
 
@@ -134,10 +139,10 @@ Tickwise deliberately does not include:
 
 ## Contributing
 
-Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and commit conventions, [CODING_STANDARDS.md](CODING_STANDARDS.md) for the code rules, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. Security reports go through the process in [SECURITY.md](SECURITY.md).
+Contributions are welcome. Start with [CONTRIBUTING.md](https://github.com/cosgunhalil/Tickwise/blob/main/CONTRIBUTING.md) for the workflow and commit conventions, [CODING_STANDARDS.md](https://github.com/cosgunhalil/Tickwise/blob/main/CODING_STANDARDS.md) for the code rules, and [CODE_OF_CONDUCT.md](https://github.com/cosgunhalil/Tickwise/blob/main/CODE_OF_CONDUCT.md) for community expectations. Security reports go through the process in [SECURITY.md](https://github.com/cosgunhalil/Tickwise/blob/main/SECURITY.md).
 
 ## License
 
-Licensed under either of the [MIT License](LICENSE-MIT) or the [Apache License, Version 2.0](LICENSE-APACHE), at your option. Apache-2.0 adds an explicit patent grant, which some organizations require.
+Licensed under either of the [MIT License](https://github.com/cosgunhalil/Tickwise/blob/main/LICENSE-MIT) or the [Apache License, Version 2.0](https://github.com/cosgunhalil/Tickwise/blob/main/LICENSE-APACHE), at your option. Apache-2.0 adds an explicit patent grant, which some organizations require.
 
 Unless you explicitly state otherwise, any contribution you intentionally submit for inclusion in Tickwise is dual licensed as above, without any additional terms or conditions.

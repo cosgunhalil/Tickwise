@@ -11,6 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 - The declared minimum supported Rust version was 1.85 while the code uses let chains, which need 1.88. It is now 1.88, and CI builds on exactly that toolchain.
+- README links were relative and therefore dead on crates.io and docs.rs. They are absolute now, and the README gained status badges.
+- Published packages carried no license text. Both license files now ship inside each crate.
 
 ### Added
 - The "Find your first desync in 15 minutes" tutorial, the hash coverage checklist, and the light hash budget guide under `docs/`.
