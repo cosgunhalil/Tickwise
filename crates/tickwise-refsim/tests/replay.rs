@@ -20,7 +20,9 @@ fn encode(inputs: &[PlayerInput]) -> Vec<u8> {
 
 fn decode(bytes: &[u8]) -> Vec<PlayerInput> {
     bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| PlayerInput {
             move_x: pair[0] as i8,
             move_y: pair[1] as i8,
