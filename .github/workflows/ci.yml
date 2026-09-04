@@ -47,6 +47,23 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
+  msrv:
+    name: build on the minimum supported rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the declared minimum toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88.0"
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check every target with every feature on the minimum version
+        run: cargo check --workspace --all-targets --all-features
+
   integrations:
     name: ggrs ex_game integration on ubuntu-latest
     runs-on: ubuntu-latest

@@ -9,6 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 - Relicensed from MIT to MIT OR Apache-2.0, at your option. Apache-2.0 adds an explicit patent grant.
 
+### Fixed
+- The declared minimum supported Rust version was 1.85 while the code uses let chains, which need 1.88. It is now 1.88, and CI builds on exactly that toolchain.
+
 ### Added
 - The "Find your first desync in 15 minutes" tutorial, the hash coverage checklist, and the light hash budget guide under `docs/`.
 - `callback_probe` and `serde_probe` examples running the full two-pass workflow in memory.

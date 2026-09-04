@@ -4,7 +4,8 @@ These are the rules for all code in this repository. They exist so that every mo
 
 ## Toolchain
 
-- Stable Rust, latest release. No nightly features.
+- Stable Rust, latest release for development. No nightly features.
+- The minimum supported Rust version is declared as `rust-version` in the workspace manifest and enforced by a CI job that builds on exactly that toolchain. Raising it is a Changed entry in the CHANGELOG, never a silent side effect of using a new language feature.
 - `cargo fmt` with the default rustfmt configuration. No `rustfmt.toml` overrides.
 - `cargo clippy --all-targets -- -D warnings` must pass. Warnings are errors.
 - CI enforces both. A PR that fails either does not get reviewed.
