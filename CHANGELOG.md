@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Relicensed from MIT to MIT OR Apache-2.0, at your option. Apache-2.0 adds an explicit patent grant.
+
+### Added
+- The "Find your first desync in 15 minutes" tutorial, the hash coverage checklist, and the light hash budget guide under `docs/`.
+- `callback_probe` and `serde_probe` examples running the full two-pass workflow in memory.
+- Criterion benchmarks for the recorder, compare, and the reference simulation tick budget.
+- `replay_demo` example in the reference simulation, completing the command-line two-pass workflow.
+- Integrations under `integrations/`: a GGRS `ex_game` synctest harness and a schema-walking probe for Bones ECS worlds.
+- Documentation builds with warnings denied in CI.
+
 ## [0.2.0] - 2026-09-02
 
 The full two-pass workflow: record, compare, replay, diff.

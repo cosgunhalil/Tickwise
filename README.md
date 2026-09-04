@@ -138,4 +138,6 @@ Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the
 
 ## License
 
-Licensed under the [MIT License](LICENSE).
+Licensed under either of the [MIT License](LICENSE-MIT) or the [Apache License, Version 2.0](LICENSE-APACHE), at your option. Apache-2.0 adds an explicit patent grant, which some organizations require.
+
+Unless you explicitly state otherwise, any contribution you intentionally submit for inclusion in Tickwise is dual licensed as above, without any additional terms or conditions.

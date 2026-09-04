@@ -85,6 +85,10 @@ Write the aside as its own sentence instead. Code itself is exempt, and so are a
 - **Bugs and desync reports:** use the issue templates. For desync reports, the more of your `.rec` and `.dump` context you can share, the better.
 - **Security vulnerabilities:** never open a public issue. Follow [SECURITY.md](SECURITY.md).
 
+## Licensing of contributions
+
+Tickwise is dual licensed under MIT OR Apache-2.0. Unless you explicitly state otherwise, any contribution you intentionally submit for inclusion is licensed the same way, without any additional terms or conditions. Ported or vendored third-party code must keep its original copyright notice and license text in a `THIRD_PARTY_LICENSES.md` next to it.
+
 ## Code of conduct
 
 Participation in this project is covered by our [Code of Conduct](CODE_OF_CONDUCT.md). Be excellent to each other.
