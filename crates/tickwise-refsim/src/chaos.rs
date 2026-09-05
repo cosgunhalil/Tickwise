@@ -16,9 +16,12 @@ pub enum ChaosMode {
     /// Order-dependent state folded through a real `HashMap`, whose
     /// iteration order is random per process. The genuine article.
     HashmapIter,
-    /// A stale scratch value read where initialized state belongs, the
-    /// stale-cached-value bug in its natural habitat.
-    UninitRead,
+    /// A stale scratch value, left over from the previous tick and never
+    /// reset, read where freshly initialized state belongs. Safe Rust
+    /// cannot read truly uninitialized memory, so this simulates the
+    /// stale-cache bug the same way it appears in production: the value
+    /// is initialized, it is simply from the wrong moment.
+    StaleValue,
     /// The wall clock leaking into the simulation RNG.
     TimeDependent,
 }
@@ -28,7 +31,7 @@ impl ChaosMode {
     pub const ALL: [ChaosMode; 4] = [
         ChaosMode::FloatDrift,
         ChaosMode::HashmapIter,
-        ChaosMode::UninitRead,
+        ChaosMode::StaleValue,
         ChaosMode::TimeDependent,
     ];
 }
@@ -38,7 +41,7 @@ impl std::fmt::Display for ChaosMode {
         let name = match self {
             Self::FloatDrift => "float-drift",
             Self::HashmapIter => "hashmap-iter",
-            Self::UninitRead => "uninit-read",
+            Self::StaleValue => "stale-value",
             Self::TimeDependent => "time-dependent",
         };
         write!(f, "{name}")
@@ -54,7 +57,7 @@ impl std::fmt::Display for UnknownChaosMode {
         write!(
             f,
             "unknown chaos mode {:?}, expected one of float-drift, \
-             hashmap-iter, uninit-read, time-dependent",
+             hashmap-iter, stale-value, time-dependent",
             self.0
         )
     }
@@ -69,7 +72,8 @@ impl std::str::FromStr for ChaosMode {
         match s {
             "float-drift" => Ok(Self::FloatDrift),
             "hashmap-iter" => Ok(Self::HashmapIter),
-            "uninit-read" => Ok(Self::UninitRead),
+            // The old name is accepted so existing scripts keep working.
+            "stale-value" | "uninit-read" => Ok(Self::StaleValue),
             "time-dependent" => Ok(Self::TimeDependent),
             other => Err(UnknownChaosMode(other.to_string())),
         }

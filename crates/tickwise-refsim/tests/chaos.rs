@@ -78,8 +78,8 @@ fn control_runs_are_identical() {
 }
 
 #[test]
-fn uninit_read_is_caught_by_the_light_hash_at_the_strike_tick() {
-    match first_divergence_against_control(ChaosMode::UninitRead) {
+fn stale_value_is_caught_by_the_light_hash_at_the_strike_tick() {
+    match first_divergence_against_control(ChaosMode::StaleValue) {
         Outcome::Diverged(d) => {
             assert_eq!(d.tick, CHAOS_START);
             assert_eq!(d.detected_by, HashKind::Light);

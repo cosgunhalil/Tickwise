@@ -45,8 +45,8 @@ fn float_drift_shows_up_as_a_single_sub_epsilon_difference() {
 }
 
 #[test]
-fn uninit_read_shows_up_as_an_exact_score_difference() {
-    let diff = dump_diff_after_strike(ChaosMode::UninitRead);
+fn stale_value_shows_up_as_an_exact_score_difference() {
+    let diff = dump_diff_after_strike(ChaosMode::StaleValue);
     assert_eq!(diff.differences.len(), 1);
     let d = &diff.differences[0];
     assert_eq!(d.path, "score");

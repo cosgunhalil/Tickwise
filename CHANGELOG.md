@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- The `uninit-read` chaos mode in the reference simulation is renamed `stale-value`. Safe Rust cannot read uninitialized memory; the mode simulates a stale scratch value that was never reset, and the name now says so. The old name is still accepted on the command line.
+
 ## [0.2.1] - 2026-09-04
 
 ### Changed

@@ -2,7 +2,7 @@
 //!
 //! Usage: record_demo <out.rec> [--chaos <mode> [start_tick]]
 //!
-//! Chaos modes: float-drift, hashmap-iter, uninit-read, time-dependent.
+//! Chaos modes: float-drift, hashmap-iter, stale-value, time-dependent.
 //! Record one clean session and one chaotic one, then watch tickwise
 //! compare find the strike tick.
 
@@ -21,7 +21,7 @@ fn main() {
         Some("--chaos") => {
             let Some(mode_name) = args.get(2) else {
                 eprintln!(
-                    "--chaos needs a mode: float-drift, hashmap-iter, uninit-read, time-dependent"
+                    "--chaos needs a mode: float-drift, hashmap-iter, stale-value, time-dependent"
                 );
                 std::process::exit(2);
             };

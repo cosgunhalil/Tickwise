@@ -155,12 +155,12 @@ impl World {
     pub fn step(&mut self, inputs: &[PlayerInput]) {
         let chaos = self.active_chaos();
 
-        // Chaos: uninit-read. The scratch value is leftover from the
+        // Chaos: stale-value. The scratch value is leftover from the
         // previous tick, and the canonical path never reads it. Reading
         // it here is the stale-value bug: state that should have been
-        // initialized this tick, but was not. The or with 1 guarantees a
+        // refreshed this tick, but was not. The or with 1 guarantees a
         // nonzero contribution, so the strike lands on its start tick.
-        if chaos == Some(ChaosMode::UninitRead) {
+        if chaos == Some(ChaosMode::StaleValue) {
             self.score = self.score.wrapping_add(self.scratch | 1);
         }
 
@@ -246,11 +246,11 @@ impl World {
                     | 1;
                 self.rng = Lcg::new(self.rng.state() ^ nanos);
             }
-            Some(ChaosMode::UninitRead) | None => {}
+            Some(ChaosMode::StaleValue) | None => {}
         }
 
         // The scratch value every tick leaves behind for the next one.
-        // Canonical code never reads it, only the uninit-read chaos does.
+        // Canonical code never reads it, only the stale-value chaos does.
         self.scratch = match self.balls.first() {
             Some(ball) => {
                 (u64::from(ball.position.x.to_bits()) << 32) | u64::from(ball.velocity.y.to_bits())

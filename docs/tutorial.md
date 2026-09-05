@@ -78,11 +78,11 @@ The recording is small, the checksum is intact, and the tool already tells you t
 Refsim has chaos flags that inject a known class of non-determinism starting at a chosen tick. This one reads a stale value that should have been reinitialized, the classic cached-value bug, striking at tick 4021:
 
 ```
-cargo run -q -p tickwise-refsim --example record_demo -- chaotic.rec --chaos uninit-read 4021
+cargo run -q -p tickwise-refsim --example record_demo -- chaotic.rec --chaos stale-value 4021
 ```
 
 ```
-recorded 6000 ticks with uninit-read chaos from tick 4021
+recorded 6000 ticks with stale-value chaos from tick 4021
 ```
 
 Same seed, same inputs, same code, one bug. This stands in for two players whose clients drifted apart mid-match.
@@ -126,7 +126,7 @@ replayed ticks 0 to 5999, every hash matched the recording
 The second line matters. During replay, Tickwise compared every live hash against the recording, so the replay provably reproduced the original session. Now the sabotaged one, with the same chaos flags so the bug reproduces too:
 
 ```
-cargo run -q -p tickwise-refsim --example replay_demo -- chaotic.rec chaotic.dump --dump-at 4021 --chaos uninit-read 4021
+cargo run -q -p tickwise-refsim --example replay_demo -- chaotic.rec chaotic.dump --dump-at 4021 --chaos stale-value 4021
 ```
 
 ```
