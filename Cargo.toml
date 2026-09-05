@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/cosgunhalil/Tickwise"
@@ -15,5 +15,5 @@ documentation = "https://docs.rs/tickwise"
 rust-version = "1.88"
 
 [workspace.dependencies]
-tickwise = { path = "crates/tickwise", version = "0.2.1" }
-tickwise-refsim = { path = "crates/tickwise-refsim", version = "0.2.1" }
+tickwise = { path = "crates/tickwise", version = "0.2.2" }
+tickwise-refsim = { path = "crates/tickwise-refsim", version = "0.2.2" }
