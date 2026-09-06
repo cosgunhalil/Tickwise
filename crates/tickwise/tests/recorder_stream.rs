@@ -201,6 +201,79 @@ fn changed_inputs_reconstruct_exactly() {
     }
 }
 
+/// A probe that counts how often each hash is requested, standing in for
+/// a bridge caller who pays for every full hash it computes.
+struct CountingCalls {
+    light_calls: std::cell::Cell<u64>,
+    full_calls: std::cell::Cell<u64>,
+}
+
+impl DeterminismProbe for CountingCalls {
+    fn light_hash(&self) -> u64 {
+        self.light_calls.set(self.light_calls.get() + 1);
+        1
+    }
+
+    fn full_hash(&self) -> u64 {
+        self.full_calls.set(self.full_calls.get() + 1);
+        2
+    }
+
+    fn state_dump(&self) -> StateDump {
+        StateDump::empty()
+    }
+}
+
+#[test]
+fn wants_full_hash_predicts_exactly_the_ticks_that_request_one() {
+    let config = RecorderConfig {
+        full_hash_interval: FULL_INTERVAL,
+        ..RecorderConfig::default()
+    };
+    let probe = CountingCalls {
+        light_calls: std::cell::Cell::new(0),
+        full_calls: std::cell::Cell::new(0),
+    };
+    let mut rec = Recorder::new(Vec::new(), config).unwrap();
+
+    let mut predicted = Vec::new();
+    for tick in 0..TICKS {
+        let before = probe.full_calls.get();
+        let wanted = rec.wants_full_hash(tick);
+        rec.record_tick(tick, &[], &probe).unwrap();
+        let requested = probe.full_calls.get() > before;
+        assert_eq!(wanted, requested, "prediction disagreed at tick {tick}");
+        if wanted {
+            predicted.push(tick);
+        }
+    }
+    assert_eq!(probe.light_calls.get(), TICKS);
+    assert_eq!(predicted, vec![0, 50, 100]);
+
+    let bytes = rec.finish().unwrap();
+    let mut reader = RecReader::open(Cursor::new(&bytes)).unwrap();
+    let written: Vec<u64> = reader
+        .chunks()
+        .unwrap()
+        .map(Result::unwrap)
+        .filter_map(|chunk| match chunk {
+            Chunk::FullHash { tick, .. } => Some(tick),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(written, predicted);
+}
+
+#[test]
+fn zero_interval_never_wants_a_full_hash() {
+    let config = RecorderConfig {
+        full_hash_interval: 0,
+        ..RecorderConfig::default()
+    };
+    let rec = Recorder::new(Vec::new(), config).unwrap();
+    assert!((0..1000).all(|tick| !rec.wants_full_hash(tick)));
+}
+
 #[test]
 fn non_sequential_ticks_are_rejected() {
     let probe = CountingProbe { frame: 0 };

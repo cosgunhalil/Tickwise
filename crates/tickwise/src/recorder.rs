@@ -218,7 +218,7 @@ impl<W: Write> Recorder<W> {
             self.flush_light_hashes()?;
         }
 
-        if self.full_hash_interval > 0 && tick.is_multiple_of(u64::from(self.full_hash_interval)) {
+        if self.wants_full_hash(tick) {
             self.scratch.clear();
             push_u64(&mut self.scratch, tick);
             push_u64(&mut self.scratch, probe.full_hash());
@@ -245,6 +245,18 @@ impl<W: Write> Recorder<W> {
     ) -> Result<(), RecordError> {
         let bytes = postcard::to_allocvec(inputs).map_err(RecordError::InputEncode)?;
         self.record_tick(tick, &bytes, probe)
+    }
+
+    /// Returns true when [`record_tick`](Recorder::record_tick) will ask
+    /// the probe for a full hash at this tick.
+    ///
+    /// Callers that compute hashes themselves instead of handing over a
+    /// probe, for example an engine bridge on the other side of a C
+    /// boundary, use this to skip the expensive full hash on the ticks
+    /// where the recorder would discard it anyway. Rust callers using a
+    /// probe never need it.
+    pub fn wants_full_hash(&self, tick: u64) -> bool {
+        self.full_hash_interval > 0 && tick.is_multiple_of(u64::from(self.full_hash_interval))
     }
 
     /// Returns true when the snapshot policy asks for a snapshot at this

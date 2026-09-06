@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- `Recorder::wants_full_hash(tick)` reports whether the next `record_tick` will request a full hash at that tick, the twin of `wants_snapshot`. Callers that compute hashes themselves, such as the engine bridges over the C ABI, use it to skip the expensive full hash on every other tick. Probe-based Rust callers are unaffected.
+
 ## [0.2.2] - 2026-09-05
 
 ### Added
