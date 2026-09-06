@@ -61,6 +61,10 @@ This is the only crate in the repository allowed to use `unsafe`. The rules are 
 
 The full policy is in [CODING_STANDARDS.md](https://github.com/cosgunhalil/Tickwise/blob/main/CODING_STANDARDS.md).
 
+## Prebuilt binaries
+
+The Unity release workflow, `.github/workflows/unity-release.yml`, builds this crate for Windows x86_64, Linux x86_64, Android arm64-v8a, armeabi-v7a, and x86_64, macOS as a universal binary, and iOS as a static library, and attaches one archive per platform to the GitHub Release tagged `unity/v<version>`. Each archive holds the library, `tickwise.h`, this README, and the license texts, so a C or C++ host such as Unreal or cocos2d-x can consume the ABI without a Rust toolchain. The Windows build links the C runtime statically; the macOS and iOS binaries are unsigned, and signing them is the consuming app's job.
+
 ## ABI versioning
 
 `tickwise_ffi_abi_version()` returns the version of the C surface. It increments on every incompatible change, and bridges refuse to load a library whose value differs from the one they were compiled for. The surface may change freely while this crate is below 1.0. Once a bridge is announced publicly, every surface change ships with a migration note in the CHANGELOG.

@@ -19,10 +19,10 @@ Under construction, milestone M6 of the Tickwise v2 roadmap. This first version 
 Install by git URL from the Package Manager window, or add the line to `Packages/manifest.json`:
 
 ```
-"com.cosgunhalil.tickwise": "https://github.com/cosgunhalil/Tickwise.git?path=bridges/unity/com.cosgunhalil.tickwise#unity/v0.1.0"
+"com.cosgunhalil.tickwise": "https://github.com/cosgunhalil/Tickwise.git#unity/v0.1.0"
 ```
 
-Released package versions live on the `upm` branch and carry tags of the form `unity/vX.Y.Z`. The `main` branch holds source only, without the native binaries.
+Released package versions live at the root of the `upm` branch, with the native binaries included, and carry tags of the form `unity/vX.Y.Z`. The `main` branch holds the package source under `bridges/unity/` without binaries; installing from `main` needs `?path=bridges/unity/com.cosgunhalil.tickwise` and a locally built native library.
 
 ## Layout
 
@@ -42,6 +42,10 @@ Released package versions live on the `upm` branch and carry tags of the form `u
 | iOS device | `libtickwise_ffi.a` | Static, linked into the app; the simulator is not covered yet |
 
 The C# side is identical on every platform except iOS, where the import name is `__Internal` because the library is linked statically.
+
+## Releasing
+
+A release is one manual run of the Unity release workflow in the repository's Actions tab, with the version as its input. The workflow builds the native library for Windows, Linux, Android, macOS, and iOS, runs `bridges/unity/scripts/assemble-upm.sh` to combine the package sources with the binaries and their generated plugin metas, commits the result to the `upm` branch, tags it `unity/v<version>`, and attaches the raw libraries with the C header to a GitHub Release for non-Unity hosts. `package.json` must already carry the version, or the workflow refuses.
 
 ## Testing
 

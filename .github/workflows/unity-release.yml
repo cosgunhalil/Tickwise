@@ -1,0 +1,210 @@
+name: Unity release
+
+# Builds tickwise_ffi for every platform the Unity package supports,
+# assembles the package with the binaries and their plugin importer metas,
+# commits it to the upm branch, tags it unity/v<version>, and attaches the
+# raw libraries to a GitHub Release. main never carries binaries.
+#
+# Run it by hand from the Actions tab once package.json carries the version
+# to release. The tag is created here, on the upm commit, not on main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to release, must match bridges/unity/com.cosgunhalil.tickwise/package.json
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: build windows x86_64
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: bridges/tickwise-ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridges/tickwise-ffi
+      - name: Build
+        run: cargo build --release
+      - name: Stage
+        shell: bash
+        run: |
+          mkdir -p ../../stage/windows-x86_64
+          cp target/release/tickwise_ffi.dll ../../stage/windows-x86_64/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: stage/windows-x86_64
+          if-no-files-found: error
+
+  linux:
+    name: build linux x86_64 and android
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bridges/tickwise-ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridges/tickwise-ffi
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Build linux
+        run: cargo build --release
+      - name: Build android
+        # The ubuntu runner image sets ANDROID_NDK_HOME, which cargo-ndk reads.
+        run: |
+          echo "NDK: $ANDROID_NDK_HOME"
+          cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o ../../stage/android build --release
+      - name: Stage
+        run: |
+          mkdir -p ../../stage/linux-x86_64 ../../stage/android-arm64-v8a ../../stage/android-armeabi-v7a ../../stage/android-x86_64
+          cp target/release/libtickwise_ffi.so ../../stage/linux-x86_64/
+          cp ../../stage/android/arm64-v8a/libtickwise_ffi.so ../../stage/android-arm64-v8a/
+          cp ../../stage/android/armeabi-v7a/libtickwise_ffi.so ../../stage/android-armeabi-v7a/
+          cp ../../stage/android/x86_64/libtickwise_ffi.so ../../stage/android-x86_64/
+          rm -rf ../../stage/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: stage/linux-x86_64
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64-v8a
+          path: stage/android-arm64-v8a
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-armeabi-v7a
+          path: stage/android-armeabi-v7a
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-x86_64
+          path: stage/android-x86_64
+          if-no-files-found: error
+
+  macos:
+    name: build macos universal and ios
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: bridges/tickwise-ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin, aarch64-apple-darwin, aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridges/tickwise-ffi
+      - name: Build macos for both architectures
+        run: |
+          cargo build --release --target x86_64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+      - name: Build ios static library
+        run: cargo rustc --release --target aarch64-apple-ios --crate-type staticlib
+      - name: Stage
+        run: |
+          mkdir -p ../../stage/macos ../../stage/ios
+          lipo -create -output ../../stage/macos/libtickwise_ffi.dylib \
+            target/x86_64-apple-darwin/release/libtickwise_ffi.dylib \
+            target/aarch64-apple-darwin/release/libtickwise_ffi.dylib
+          lipo -info ../../stage/macos/libtickwise_ffi.dylib
+          cp target/aarch64-apple-ios/release/libtickwise_ffi.a ../../stage/ios/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: stage/macos
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: stage/ios
+          if-no-files-found: error
+
+  publish:
+    name: assemble the package, publish the upm branch, attach the release
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+
+      - name: Assemble the package with binaries and metas
+        run: bash bridges/unity/scripts/assemble-upm.sh "${{ inputs.version }}" binaries upm-package
+
+      - name: Bundle the raw libraries and the C header for the release
+        run: |
+          mkdir -p release
+          for target in windows-x86_64 linux-x86_64 macos ios android-arm64-v8a android-armeabi-v7a android-x86_64; do
+            mkdir -p "bundle/$target"
+            cp binaries/$target/* "bundle/$target/"
+            cp bridges/tickwise-ffi/include/tickwise.h "bundle/$target/"
+            cp bridges/tickwise-ffi/README.md bridges/tickwise-ffi/LICENSE-MIT bridges/tickwise-ffi/LICENSE-APACHE "bundle/$target/"
+            (cd bundle && zip -qr "../release/tickwise-ffi-${{ inputs.version }}-$target.zip" "$target")
+          done
+          ls -la release
+
+      - name: Commit the package to the upm branch
+        run: |
+          set -euo pipefail
+          version="${{ inputs.version }}"
+          source_sha="$(git rev-parse --short HEAD)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin upm >/dev/null 2>&1; then
+            git fetch origin upm
+            git worktree add upm-branch origin/upm
+          else
+            git worktree add --detach upm-branch
+            (cd upm-branch && git checkout --orphan upm && git rm -rfq . && git clean -fdxq)
+          fi
+
+          (cd upm-branch && git rm -rfq --ignore-unmatch . && git clean -fdxq)
+          cp -R upm-package/. upm-branch/
+          cd upm-branch
+          git add -A
+          git commit --allow-empty \
+            -m "release(unity): com.cosgunhalil.tickwise $version" \
+            -m "Assembled from main at $source_sha with native binaries for Windows, macOS, Linux, Android, and iOS."
+          git tag -a "unity/v$version" -m "Tickwise for Unity $version"
+          git push origin HEAD:refs/heads/upm
+          git push origin "unity/v$version"
+
+      - name: Create the GitHub Release with the raw libraries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: unity/v${{ inputs.version }}
+          name: Tickwise for Unity ${{ inputs.version }}
+          body: |
+            Install in Unity by git URL:
+
+            ```
+            https://github.com/cosgunhalil/Tickwise.git#unity/v${{ inputs.version }}
+            ```
+
+            The attached archives hold the raw `tickwise_ffi` library per platform with the C header, for Unreal, cocos2d-x, or any other C or C++ host. See `bridges/unity/com.cosgunhalil.tickwise/CHANGELOG.md` for what changed.
+          files: release/*.zip
