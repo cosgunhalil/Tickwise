@@ -17,6 +17,14 @@ target
 *.rec
 *.dump
 
+# Prebuilt native binaries never enter main. The release workflow builds
+# them and publishes the assembled Unity package onto the upm branch.
+bridges/unity/**/Plugins/**/*.dll
+bridges/unity/**/Plugins/**/*.so
+bridges/unity/**/Plugins/**/*.dylib
+bridges/unity/**/Plugins/**/*.a
+bridges/unity/**/Plugins/**/*.bundle
+
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

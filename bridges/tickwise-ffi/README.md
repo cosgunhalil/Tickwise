@@ -18,14 +18,17 @@ The crate is built three ways from one source:
 
 ## Building
 
-This crate is its own Cargo workspace. From the repository root:
+This crate is its own Cargo workspace. Build it from its own directory, because Cargo reads the `.cargo/config.toml` there only from the working directory, and that file is what links the C runtime statically on Windows:
 
 ```
-cargo build --manifest-path bridges/tickwise-ffi/Cargo.toml --release
-cargo test --manifest-path bridges/tickwise-ffi/Cargo.toml
+cd bridges/tickwise-ffi
+cargo build --release
+cargo test
 ```
 
-The shared library lands in `bridges/tickwise-ffi/target/release/` as `tickwise_ffi.dll`, `libtickwise_ffi.so`, or `libtickwise_ffi.dylib` depending on the platform.
+The shared library lands in `target/release/` as `tickwise_ffi.dll`, `libtickwise_ffi.so`, or `libtickwise_ffi.dylib` depending on the platform. The release profile uses fat LTO and a single codegen unit. On Windows the DLL depends only on system libraries, never on the Visual C++ redistributable, and CI checks that with `dumpbin`.
+
+For local Unity work before the release workflow exists, `scripts/build-for-unity.ps1` builds the release DLL and copies it into the Unity package's `Runtime/Plugins/Windows/x86_64/` folder, which is gitignored.
 
 ## Testing
 

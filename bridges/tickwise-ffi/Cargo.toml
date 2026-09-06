@@ -25,4 +25,12 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 # so the C harness under ctest/ builds inside cargo test on every platform.
 cc = "1"
 
+# The release profile is what ships inside engine packages, so it trades
+# build time for size and speed. Panics stay unwinding on purpose: the
+# boundary guard turns them into status codes, and panic = "abort" would
+# take the whole game process down instead.
+[profile.release]
+lto = true
+codegen-units = 1
+
 [workspace]

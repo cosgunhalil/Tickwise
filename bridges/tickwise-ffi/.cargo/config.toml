@@ -1,0 +1,8 @@
+# Link the MSVC C runtime statically so the DLL runs on machines without
+# the Visual C++ redistributable. Unity users drop the binary into a
+# project and expect it to load anywhere.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
