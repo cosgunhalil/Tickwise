@@ -45,3 +45,10 @@ Copy-Item -Path $dll -Destination (Join-Path $Destination "tickwise_ffi.dll") -F
 
 $size = (Get-Item $dll).Length
 Write-Host "copied tickwise_ffi.dll ($size bytes) to $Destination"
+
+# Unity needs the plugin importer meta beside the binary, and deletes it
+# whenever the binary is absent, so it is written here rather than committed.
+$metaScript = Join-Path $repoRoot "bridges/unity/scripts/new-plugin-meta.ps1"
+if (-not (Test-Path (Join-Path $Destination "tickwise_ffi.dll.meta")) -and (Test-Path $metaScript)) {
+    & $metaScript windows-x86_64
+}

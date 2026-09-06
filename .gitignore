@@ -28,6 +28,13 @@ bridges/unity/**/Plugins/**/*.so
 bridges/unity/**/Plugins/**/*.dylib
 bridges/unity/**/Plugins/**/*.a
 bridges/unity/**/Plugins/**/*.bundle
+# Their plugin importer metas too: Unity deletes a meta whose asset is
+# missing, so they are generated beside the binaries at release time.
+bridges/unity/**/Plugins/**/*.dll.meta
+bridges/unity/**/Plugins/**/*.so.meta
+bridges/unity/**/Plugins/**/*.dylib.meta
+bridges/unity/**/Plugins/**/*.a.meta
+bridges/unity/**/Plugins/**/*.bundle.meta
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

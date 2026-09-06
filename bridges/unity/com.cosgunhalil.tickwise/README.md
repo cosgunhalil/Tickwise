@@ -27,9 +27,21 @@ Released package versions live on the `upm` branch and carry tags of the form `u
 ## Layout
 
 - `Runtime/`: the `Tickwise.Runtime` assembly. It has no reference to `UnityEngine`, so the same sources compile in a plain .NET test project and run in continuous integration where no editor exists.
-- `Runtime/Plugins/`: the native library per platform. Empty on `main`.
+- `Runtime/Plugins/`: the native library per platform, one folder each: `Windows/x86_64`, `macOS` as a universal binary, `Linux/x86_64`, `Android/arm64-v8a`, `Android/armeabi-v7a`, `Android/x86_64`, and `iOS` as a static library. The `.meta` beside each binary carries the platform and CPU settings. Both the binaries and their metas are absent on `main` and present on the `upm` branch; the release workflow generates the metas with `bridges/unity/scripts/new-plugin-meta.ps1`.
 - `Documentation~/`: the manual.
 - `Samples~/`: a deterministic mini game with a chaos toggle, importable from the Package Manager window.
+
+## Platforms
+
+| Platform | Binary | Notes |
+|---|---|---|
+| Windows x86_64, editor and player | `tickwise_ffi.dll` | Static C runtime, no redistributable needed |
+| macOS, editor and player | `libtickwise_ffi.dylib` | Universal, Intel and Apple silicon |
+| Linux x86_64, editor and player | `libtickwise_ffi.so` | |
+| Android arm64-v8a, armeabi-v7a, x86_64 | `libtickwise_ffi.so` per ABI | Mono and IL2CPP |
+| iOS device | `libtickwise_ffi.a` | Static, linked into the app; the simulator is not covered yet |
+
+The C# side is identical on every platform except iOS, where the import name is `__Internal` because the library is linked statically.
 
 ## Testing
 

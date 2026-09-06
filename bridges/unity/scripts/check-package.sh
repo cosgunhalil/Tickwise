@@ -56,6 +56,29 @@ while IFS= read -r -d '' meta; do
     fi
 done < <(find . -name '*.meta' -print0)
 
+# A native binary that is present, locally or on the upm branch, must carry a
+# plugin importer meta, or Unity would import it with default settings and
+# try to load it on every platform at once. Absent binaries have no meta on
+# main, because Unity deletes metas of missing assets on import.
+while IFS= read -r -d '' binary; do
+    rel="${binary#./}"
+    if [ ! -f "$rel.meta" ]; then
+        echo "native binary without a plugin meta: $rel, run scripts/new-plugin-meta.ps1"
+        failures=$((failures + 1))
+    elif ! grep -q "^PluginImporter:" "$rel.meta"; then
+        echo "not a plugin importer meta: $rel.meta"
+        failures=$((failures + 1))
+    fi
+done < <(find ./Runtime/Plugins -type f \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' -o -name '*.a' \) -print0 2>/dev/null)
+
+# The seven platform folders stay in git so a release only adds files.
+for folder in Windows/x86_64 macOS Linux/x86_64 Android/arm64-v8a Android/armeabi-v7a Android/x86_64 iOS; do
+    if [ ! -f "Runtime/Plugins/$folder.meta" ]; then
+        echo "missing plugin folder meta: Runtime/Plugins/$folder.meta"
+        failures=$((failures + 1))
+    fi
+done
+
 if [ "$failures" -ne 0 ]; then
     echo "$failures problem(s) in the Unity package layout"
     exit 1
