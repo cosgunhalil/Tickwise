@@ -37,6 +37,23 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 #![deny(missing_docs)]
 
+mod error;
+mod hash;
+mod recorder;
+
+pub use error::{TickwiseStatus, tickwise_last_error_message, tickwise_status_name};
+pub use hash::{
+    TICKWISE_HASH_ALGO_BLAKE3, TICKWISE_HASH_ALGO_USER_DEFINED, TICKWISE_HASH_ALGO_XXH3,
+    tickwise_xxh3_64,
+};
+pub use recorder::{
+    TickwiseRecorder, TickwiseRecorderConfig, tickwise_recorder_config_default,
+    tickwise_recorder_create, tickwise_recorder_destroy, tickwise_recorder_finish,
+    tickwise_recorder_record_marker, tickwise_recorder_record_snapshot,
+    tickwise_recorder_record_tick, tickwise_recorder_wants_full_hash,
+    tickwise_recorder_wants_snapshot,
+};
+
 use std::ffi::c_char;
 
 /// Version of the C surface. Increments on every incompatible change.

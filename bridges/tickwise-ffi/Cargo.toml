@@ -16,5 +16,8 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 tickwise = { path = "../../crates/tickwise" }
+# The same xxh3 the core's serde layer uses under hash_algo_id 1, exposed
+# so engine users hash with the same algorithm as Rust users.
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [workspace]
