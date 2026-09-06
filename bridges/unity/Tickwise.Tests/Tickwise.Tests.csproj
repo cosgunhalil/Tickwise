@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Plain .NET tests for the Unity package's runtime assembly. The package
+    sources are compiled straight into this project, so what runs here is
+    exactly what Unity ships, without an editor anywhere in the loop.
+    Unity 2022.3 compiles C# 9 against .NET Standard 2.1, so the sources
+    are held to that language version here as well.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Tickwise.Tests</RootNamespace>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <PackageRuntimeDir>$(MSBuildThisFileDirectory)../com.cosgunhalil.tickwise/Runtime/</PackageRuntimeDir>
+    <FfiReleaseDir>$(MSBuildThisFileDirectory)../../tickwise-ffi/target/release/</FfiReleaseDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(PackageRuntimeDir)**/*.cs" Link="Runtime/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    The native library is picked up from the tickwise-ffi release build when
+    it exists. Build it first from bridges/tickwise-ffi with cargo build
+    release; the tests fail with a clear message otherwise.
+  -->
+  <ItemGroup>
+    <None Include="$(FfiReleaseDir)tickwise_ffi.dll" Condition="Exists('$(FfiReleaseDir)tickwise_ffi.dll')" CopyToOutputDirectory="PreserveNewest" Link="tickwise_ffi.dll" />
+    <None Include="$(FfiReleaseDir)libtickwise_ffi.so" Condition="Exists('$(FfiReleaseDir)libtickwise_ffi.so')" CopyToOutputDirectory="PreserveNewest" Link="libtickwise_ffi.so" />
+    <None Include="$(FfiReleaseDir)libtickwise_ffi.dylib" Condition="Exists('$(FfiReleaseDir)libtickwise_ffi.dylib')" CopyToOutputDirectory="PreserveNewest" Link="libtickwise_ffi.dylib" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

@@ -17,6 +17,10 @@ target
 *.rec
 *.dump
 
+# .NET build output of the Unity wrapper tests
+bridges/unity/Tickwise.Tests/bin/
+bridges/unity/Tickwise.Tests/obj/
+
 # Prebuilt native binaries never enter main. The release workflow builds
 # them and publishes the assembled Unity package onto the upm branch.
 bridges/unity/**/Plugins/**/*.dll

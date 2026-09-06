@@ -31,6 +31,17 @@ Released package versions live on the `upm` branch and carry tags of the form `u
 - `Documentation~/`: the manual.
 - `Samples~/`: a deterministic mini game with a chaos toggle, importable from the Package Manager window.
 
+## Testing
+
+The wrapper is tested without an editor. `bridges/unity/Tickwise.Tests` is a plain .NET 8 xunit project that compiles the `Runtime/` sources directly, loads the native library from the `tickwise-ffi` release build, records sessions, and verifies them with the `tickwise` command line tool built from this repository. It runs in continuous integration on Windows, macOS, and Linux.
+
+```
+cd bridges/tickwise-ffi && cargo build --release && cd ../..
+dotnet test bridges/unity/Tickwise.Tests
+```
+
+The sample scene and the platform plugin settings are validated by hand in the Unity editor.
+
 ## License
 
 MIT OR Apache-2.0, at your option, like the rest of Tickwise. See `LICENSE.md` and `Third Party Notices.md`.

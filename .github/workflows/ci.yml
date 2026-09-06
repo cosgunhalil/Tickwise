@@ -189,6 +189,41 @@ jobs:
       - name: Check package.json and the .meta files
         run: bash bridges/unity/scripts/check-package.sh
 
+  unity-wrapper:
+    name: unity wrapper tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            bridges/tickwise-ffi
+
+      - name: Install the .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build the native library
+        working-directory: bridges/tickwise-ffi
+        run: cargo build --release
+
+      - name: Build the tickwise CLI the tests shell out to
+        run: cargo build -p tickwise-cli
+
+      - name: Run the wrapper tests against the native library
+        run: dotnet test bridges/unity/Tickwise.Tests --logger "console;verbosity=normal"
+
   fuzz-smoke:
     name: fuzz the .rec reader for 60 seconds
     runs-on: ubuntu-latest
