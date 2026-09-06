@@ -8,7 +8,8 @@ Tickwise is in early development, before its first release. The API and the `.re
 
 - **Very welcome:** bug reports, desync war stories, feedback on the API sketch, documentation fixes, and testing on platforms we do not cover.
 - **Welcome with prior discussion:** new features and refactors. Open an issue before writing code, so nobody's work goes to waste.
-- **Please hold:** anything on the non-goals list in the [README](README.md). Those decisions are settled for v1.
+- **Please hold:** anything on the non-goals list in the [README](README.md). Those decisions are settled.
+- **Engine bridges:** the v2 roadmap in the README lists the bridges and their order. Each lands as its own project under `bridges/`. If you want to help with one, comment on its tracking issue first, because the C ABI shapes everything above it.
 
 ## Getting started
 
@@ -30,9 +31,13 @@ cargo clippy --all-targets -- -D warnings   # lint, warnings are errors
 cargo bench                          # criterion benchmarks
 ```
 
+Bridges under `bridges/` are separate workspaces or language projects and are not built by the commands above. Each bridge's README lists its own build and test commands.
+
 ## Code rules
 
 All code follows [CODING_STANDARDS.md](CODING_STANDARDS.md). The short version: no async, no panics on user input, dependency additions need discussion first, and the hot path stays allocation-conscious. Read the full document before your first code PR.
+
+Non-Rust code under `bridges/` follows the same document. `unsafe` is allowed only inside `tickwise-ffi`, and the standards spell out what every unsafe block owes its reader.
 
 ## Commit messages
 
@@ -48,7 +53,7 @@ We follow [Conventional Commits v1.0.0](https://www.conventionalcommits.org/en/v
 
 Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
 
-Scopes match the architecture: `probe`, `recorder`, `replayer`, `format`, `compare`, `diff`, `cli`, `refsim`. The scope is optional when a change spans the whole workspace.
+Scopes match the architecture: `probe`, `recorder`, `replayer`, `format`, `compare`, `diff`, `cli`, `refsim`. Bridges use their own scopes: `ffi`, `unity`, `bevy`, `godot`, `unreal`, `cocos`. The scope is optional when a change spans the whole workspace.
 
 Breaking changes append `!` after the type or scope and add a `BREAKING CHANGE:` footer. Until 1.0 the format may break, but the history must still say so honestly.
 

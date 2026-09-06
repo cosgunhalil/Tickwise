@@ -36,7 +36,26 @@ These come from settled design decisions and are not open for casual relitigatio
 
 ## Unsafe policy
 
-`unsafe` is forbidden until the FFI work begins in v2. When that day comes, every `unsafe` block will carry a `// SAFETY:` comment proving its invariants, and no PR mixes unsafe changes with unrelated changes. Until then, `#![forbid(unsafe_code)]` stands in every crate.
+`unsafe` is permitted in exactly one place: the `tickwise-ffi` crate under `bridges/`. Every other Rust crate in this repository, including the core, the CLI, the reference simulation, the integrations, and the Rust-native bridges for Bevy and Godot, carries `#![forbid(unsafe_code)]`.
+
+Inside `tickwise-ffi`:
+
+1. The crate sets `#![deny(unsafe_op_in_unsafe_fn)]`. Every unsafe operation sits in its own `unsafe` block, even inside an `unsafe fn`.
+2. Every `unsafe` block carries a `// SAFETY:` comment stating the invariant that makes it sound and who upholds it, the caller or the crate.
+3. Every exported function is `extern "C"`, documents its contract in the header comment, and is safe against null pointers, zero lengths, and misuse such as double finish or out-of-order ticks. Misuse returns an error code. It never panics across the boundary, and it never unwinds.
+4. Panics are caught at the boundary and turned into an error code. A panic reaching C is a bug of the highest priority, on par with a fuzz-found panic in the reader.
+5. A PR touching `unsafe` code contains nothing unrelated.
+
+## Bridges and non-Rust code
+
+Code under `bridges/` follows the same spirit with the idioms of its own language.
+
+1. Each bridge is its own Cargo workspace or its own language project. Bridges depend on the core, never the reverse, and they never change what the crates.io crates publish.
+2. Each bridge ships its own README, CHANGELOG, LICENSE files, and tests, and CI runs every test that can run without an editor. The Unity and Unreal editors cannot run in CI, so those bridges keep their engine-free code testable in plain .NET and plain C++, and their editor-facing layer stays thin.
+3. C# follows the .NET naming conventions and the Unity package layout conventions. It uses `DllImport` declarations only, no function pointers across the boundary, so the same source compiles under Mono, IL2CPP, and plain .NET.
+4. C++ follows the target engine's style guide, meaning the Unreal coding standard inside the Unreal plugin and the cocos2d-x conventions inside that wrapper.
+5. Prebuilt native binaries are never committed to `main`. Release automation builds and publishes them.
+6. The observer model, the determinism rules, and the prose rules apply unchanged in every language.
 
 ## Determinism rules
 

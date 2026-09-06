@@ -9,7 +9,7 @@
 
 Tickwise is an engine-agnostic recording, replay, and desync-debugging toolkit for deterministic multiplayer games, written in Rust. Determinism is a promise that must be verified every single tick, and Tickwise exists to make that vigilance cheap.
 
-> ⚠️ **Status: early development.** Version 0.2.0 is on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli) and covers the full two-pass workflow: record, compare, replay, diff. The API and the recording format may change freely until 1.0.
+> ⚠️ **Status: early development.** Version 0.2.2 is on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli) and covers the full two-pass workflow: record, compare, replay, diff. The API and the recording format may change freely until 1.0.
 
 ## Try it
 
@@ -125,17 +125,32 @@ rr records execution at the syscall level. Tickwise records simulation at the ti
 | **M3** | Replayer, dumps, `diff`, serde layer, GGRS integration | Two-pass workflow end-to-end, 0.2.0 on crates.io | ✓ |
 | **M4** | Launch package: docs, examples, tutorial, benchmarks | A stranger finds their first desync in 15 minutes, unaided | in progress |
 
+## v2 roadmap: engine bridges
+
+v1 is the Rust core and the command line tool. v2 brings the same two-pass workflow to engines, in this order:
+
+| Milestone | Bridge | Shape |
+|---|---|---|
+| **M5** | `tickwise-ffi` | C ABI over the core, shared and static library, generated header, prebuilt binaries for Windows, macOS, Linux, Android, and iOS |
+| **M6** | Unity | C# package over the C ABI, installable by git URL |
+| **M7** | Bevy | Native crate: a Reflect-walking probe and a fixed timestep plugin |
+| **M8** | Godot | GDExtension built with the gdext crate against the core |
+| **M9** | Unreal | C++ plugin over the C ABI |
+| **M10** | cocos2d-x | C++ wrapper over the C ABI |
+
+Every bridge ships Pass 1 first, meaning recording with caller-provided hashes so that `tickwise compare` works on sessions from that engine. Replay, dumps, and engine reflection probes follow in a second iteration. Bridges live under `bridges/` in this repository, each as its own workspace or language project. They never touch the crates.io crates, and the core keeps `#![forbid(unsafe_code)]`. Unsafe code exists only inside `tickwise-ffi`.
+
 ## Non-goals
 
-Tickwise deliberately does not include:
+Tickwise deliberately does not include, in v1 or later:
 
 - ❌ Network or transport layer, netcode, or a rollback engine. GGRS and friends own that space.
-- ❌ Unity/C# FFI bridge in v1. It is the headline theme of v2, and the core API is designed for it.
 - ❌ Determinism linter or static analysis.
 - ❌ A fixed-point math library.
-- ❌ Engine plugins for Bevy or Godot. Open territory for the community, and the API makes them possible.
 - ❌ GUI or TUI visualizer, live monitoring.
 - ❌ Async API or tokio dependency. The core stays synchronous and allocation-conscious.
+
+Two former v1 non-goals, the Unity bridge and engine plugins, moved to the v2 roadmap above. They were never out of scope for the project, only for v1, and the core API was designed for them from the first decision.
 
 ## Contributing
 
