@@ -1,0 +1,23 @@
+{
+  "name": "com.cosgunhalil.tickwise",
+  "version": "0.1.0",
+  "displayName": "Tickwise",
+  "description": "Record and compare deterministic simulations to find desyncs. Tickwise records inputs and per-tick hashes from your own game loop into .rec files, and the tickwise command line tool compares two recordings to name the first tick where they diverge.",
+  "unity": "2022.3",
+  "license": "MIT OR Apache-2.0",
+  "documentationUrl": "https://github.com/cosgunhalil/Tickwise/blob/main/bridges/unity/com.cosgunhalil.tickwise/Documentation~/com.cosgunhalil.tickwise.md",
+  "changelogUrl": "https://github.com/cosgunhalil/Tickwise/blob/main/bridges/unity/com.cosgunhalil.tickwise/CHANGELOG.md",
+  "licensesUrl": "https://github.com/cosgunhalil/Tickwise/blob/main/bridges/unity/com.cosgunhalil.tickwise/LICENSE.md",
+  "keywords": [
+    "determinism",
+    "desync",
+    "netcode",
+    "replay",
+    "multiplayer",
+    "debugging"
+  ],
+  "author": {
+    "name": "Halil Coşgun",
+    "url": "https://github.com/cosgunhalil"
+  }
+}

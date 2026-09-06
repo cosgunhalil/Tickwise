@@ -1,3 +1,7 @@
 # The generated C header is compared byte for byte in CI, so it must
 # keep LF line endings on every platform.
 *.h text eol=lf
+
+# Unity writes its own files with LF and diffs badly otherwise.
+*.meta text eol=lf
+*.asmdef text eol=lf

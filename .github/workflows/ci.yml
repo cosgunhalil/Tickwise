@@ -180,6 +180,15 @@ jobs:
             exit 1
           fi
 
+  unity-package:
+    name: unity package layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check package.json and the .meta files
+        run: bash bridges/unity/scripts/check-package.sh
+
   fuzz-smoke:
     name: fuzz the .rec reader for 60 seconds
     runs-on: ubuntu-latest
