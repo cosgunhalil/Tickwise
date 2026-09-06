@@ -14,7 +14,7 @@ use tickwise::{DeterminismProbe, Recorder, RecorderConfig, SessionMeta, StateDum
 ///
 /// Strings are UTF-8 as pointer and length, without a terminating NUL.
 /// A null pointer with length zero is an empty string. Fill it with
-/// [`tickwise_recorder_config_default`] first and override what you need.
+/// `tickwise_recorder_config_default` first and override what you need.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct TickwiseRecorderConfig {
@@ -49,7 +49,7 @@ pub struct TickwiseRecorderConfig {
 }
 
 /// An open recording session. Opaque to C; create with
-/// [`tickwise_recorder_create`], release with [`tickwise_recorder_destroy`].
+/// `tickwise_recorder_create`, release with `tickwise_recorder_destroy`.
 pub struct TickwiseRecorder {
     inner: Option<Recorder<BufWriter<std::fs::File>>>,
 }
@@ -97,7 +97,7 @@ unsafe fn bytes<'a>(ptr: *const u8, len: usize, what: &str) -> Result<&'a [u8], 
 ///
 /// # Safety
 ///
-/// Same contract as [`bytes`].
+/// Same contract as `bytes`.
 unsafe fn utf8<'a>(ptr: *const u8, len: usize, what: &str) -> Result<&'a str, FfiError> {
     // SAFETY: forwarded unchanged from this function's own contract.
     let raw = unsafe { bytes(ptr, len, what)? };
@@ -109,8 +109,8 @@ unsafe fn utf8<'a>(ptr: *const u8, len: usize, what: &str) -> Result<&'a str, Ff
 ///
 /// # Safety
 ///
-/// `rec` must be null or a pointer returned by [`tickwise_recorder_create`]
-/// that has not been passed to [`tickwise_recorder_destroy`], and no other
+/// `rec` must be null or a pointer returned by `tickwise_recorder_create`
+/// that has not been passed to `tickwise_recorder_destroy`, and no other
 /// reference to it may exist for the duration of the call.
 unsafe fn live<'a>(
     rec: *mut TickwiseRecorder,
@@ -237,7 +237,7 @@ pub unsafe extern "C" fn tickwise_recorder_create(
 }
 
 /// Records one tick: the input bytes, the light hash, and the full hash
-/// when [`tickwise_recorder_wants_full_hash`] is true for this tick.
+/// when `tickwise_recorder_wants_full_hash` is true for this tick.
 /// On other ticks `full_hash` is ignored and may be zero.
 ///
 /// Call exactly once per tick, in tick order. The first call may use any
@@ -245,7 +245,7 @@ pub unsafe extern "C" fn tickwise_recorder_create(
 ///
 /// # Safety
 ///
-/// `rec` obeys the handle contract of [`tickwise_recorder_destroy`].
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 /// `inputs` must be valid for `inputs_len` readable bytes, or null with
 /// `inputs_len == 0`.
 #[unsafe(no_mangle)]
@@ -278,7 +278,7 @@ pub unsafe extern "C" fn tickwise_recorder_record_tick(
 ///
 /// # Safety
 ///
-/// `rec` obeys the handle contract of [`tickwise_recorder_destroy`].
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tickwise_recorder_wants_full_hash(
     rec: *const TickwiseRecorder,
@@ -290,14 +290,14 @@ pub unsafe extern "C" fn tickwise_recorder_wants_full_hash(
 
 /// Returns true when the snapshot policy asks for a snapshot at this
 /// tick. The recorder cannot serialize state itself, so the caller
-/// checks this and calls [`tickwise_recorder_record_snapshot`] with its
+/// checks this and calls `tickwise_recorder_record_snapshot` with its
 /// own bytes.
 ///
 /// Returns false for a null or finished recorder.
 ///
 /// # Safety
 ///
-/// `rec` obeys the handle contract of [`tickwise_recorder_destroy`].
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tickwise_recorder_wants_snapshot(
     rec: *const TickwiseRecorder,
@@ -311,7 +311,7 @@ pub unsafe extern "C" fn tickwise_recorder_wants_snapshot(
 ///
 /// # Safety
 ///
-/// `rec` obeys the handle contract of [`tickwise_recorder_destroy`].
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 /// `data` must be valid for `data_len` readable bytes, or null with
 /// `data_len == 0`.
 #[unsafe(no_mangle)]
@@ -336,7 +336,7 @@ pub unsafe extern "C" fn tickwise_recorder_record_snapshot(
 ///
 /// # Safety
 ///
-/// `rec` obeys the handle contract of [`tickwise_recorder_destroy`].
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 /// `label` must be valid for `label_len` readable bytes, or null with
 /// `label_len == 0`.
 #[unsafe(no_mangle)]
@@ -358,14 +358,14 @@ pub unsafe extern "C" fn tickwise_recorder_record_marker(
 
 /// Flushes the last hashes, writes the index and trailer, and closes the
 /// file. The handle stays allocated but accepts nothing except
-/// [`tickwise_recorder_destroy`] afterwards. A second finish returns
-/// [`TickwiseStatus::AlreadyFinished`].
+/// `tickwise_recorder_destroy` afterwards. A second finish returns the
+/// `AlreadyFinished` status.
 ///
 /// A recorder destroyed without finish leaves an unreadable file.
 ///
 /// # Safety
 ///
-/// `rec` obeys the handle contract of [`tickwise_recorder_destroy`].
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tickwise_recorder_finish(rec: *mut TickwiseRecorder) -> TickwiseStatus {
     guard(|| {
@@ -391,7 +391,7 @@ pub unsafe extern "C" fn tickwise_recorder_finish(rec: *mut TickwiseRecorder) ->
 ///
 /// # Safety
 ///
-/// `rec` must be null or a pointer returned by [`tickwise_recorder_create`]
+/// `rec` must be null or a pointer returned by `tickwise_recorder_create`
 /// that has not already been destroyed. This is the handle contract every
 /// other function in this module refers to.
 #[unsafe(no_mangle)]

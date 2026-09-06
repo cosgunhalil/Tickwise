@@ -20,4 +20,9 @@ tickwise = { path = "../../crates/tickwise" }
 # so engine users hash with the same algorithm as Rust users.
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
+[dev-dependencies]
+# Finds the system C compiler, including MSVC without a developer shell,
+# so the C harness under ctest/ builds inside cargo test on every platform.
+cc = "1"
+
 [workspace]

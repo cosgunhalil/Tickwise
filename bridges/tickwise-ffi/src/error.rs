@@ -10,7 +10,7 @@ use tickwise::format::FormatError;
 /// Result of every fallible call in the C surface.
 ///
 /// Zero is success. Any other value means the call did nothing, and
-/// [`tickwise_last_error_message`] describes why.
+/// `tickwise_last_error_message` describes why.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickwiseStatus {

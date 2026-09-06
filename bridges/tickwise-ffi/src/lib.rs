@@ -29,7 +29,7 @@
 //!
 //! The C surface may change freely while this crate is below 1.0. Once a
 //! bridge is announced publicly, every change to the surface ships with a
-//! migration note in the CHANGELOG, and [`ABI_VERSION`] increments on any
+//! migration note in the CHANGELOG, and [`TICKWISE_ABI_VERSION`] increments on any
 //! incompatible change so a bridge can refuse a mismatched library at
 //! load time.
 
@@ -60,7 +60,7 @@ use std::ffi::c_char;
 ///
 /// Bridges compare this against the value they were compiled for and
 /// refuse to load a library that disagrees.
-pub const ABI_VERSION: u32 = 1;
+pub const TICKWISE_ABI_VERSION: u32 = 1;
 
 /// Crate version as a NUL-terminated string, for [`tickwise_ffi_version`].
 const VERSION_CSTR: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
@@ -69,10 +69,10 @@ const VERSION_CSTR: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
 // in a game process is expected to use, so the unsafe(no_mangle) contract
 // of unique symbol names holds.
 
-/// Returns the version of the C surface, see [`ABI_VERSION`].
+/// Returns the version of the C surface, see `TICKWISE_ABI_VERSION`.
 #[unsafe(no_mangle)]
 pub extern "C" fn tickwise_ffi_abi_version() -> u32 {
-    ABI_VERSION
+    TICKWISE_ABI_VERSION
 }
 
 /// Returns the crate version as a NUL-terminated UTF-8 string, for

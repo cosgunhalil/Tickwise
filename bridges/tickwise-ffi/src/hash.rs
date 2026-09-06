@@ -4,7 +4,7 @@
 /// `hash_algo_id` for a caller-defined hash. Nothing is assumed about it.
 pub const TICKWISE_HASH_ALGO_USER_DEFINED: u16 = 0;
 
-/// `hash_algo_id` for xxh3 64 bit, what [`tickwise_xxh3_64`] computes and
+/// `hash_algo_id` for xxh3 64 bit, what `tickwise_xxh3_64` computes and
 /// what the core's serde layer uses by default.
 pub const TICKWISE_HASH_ALGO_XXH3: u16 = 1;
 
