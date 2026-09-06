@@ -1,0 +1,20 @@
+[package]
+name = "tickwise-ffi"
+description = "C ABI over the Tickwise core for engine bridges: Unity, Unreal, cocos2d-x"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cosgunhalil/Tickwise"
+publish = false
+
+[lib]
+# cdylib for P/Invoke and dlopen consumers, staticlib for iOS and static
+# linking into engine plugins, rlib so the crate's own Rust tests can
+# call the exported functions directly.
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+tickwise = { path = "../../crates/tickwise" }
+
+[workspace]
