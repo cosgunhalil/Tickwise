@@ -19,5 +19,12 @@
   "author": {
     "name": "Halil Coşgun",
     "url": "https://github.com/cosgunhalil"
-  }
+  },
+  "samples": [
+    {
+      "displayName": "Deterministic Mini Game",
+      "description": "Eight balls in a box, integer math, recorded every tick. Run it clean, run it with the chaos toggle, and catch the planted bug at tick 421 with tickwise compare.",
+      "path": "Samples~/DeterministicMiniGame"
+    }
+  ]
 }
