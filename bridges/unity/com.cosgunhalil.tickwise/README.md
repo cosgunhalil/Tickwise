@@ -4,6 +4,8 @@ Record and compare deterministic simulations to find desyncs, from inside a Unit
 
 Tickwise is an observer. Your game keeps its own loop; once per tick you hand Tickwise the input bytes and a hash of your gameplay state, and it writes a compact `.rec` file. Two recordings of the same match, one per machine, go through the `tickwise compare` command line tool, which names the first tick where the simulations disagreed. The Rust core, the recording format, and the tooling live in the [Tickwise repository](https://github.com/cosgunhalil/Tickwise); this package is the C# layer over the same native library.
 
+New here? [Find your first desync in Unity in 15 minutes](https://github.com/cosgunhalil/Tickwise/blob/main/docs/unity-tutorial.md) installs the package, runs the sample twice, and catches a planted bug with the command line tool.
+
 ## Status
 
 Under construction, milestone M6 of the Tickwise v2 roadmap. This first version covers Pass 1 of the workflow, recording and compare. Replay and field-level diff over the C ABI follow in a later version.

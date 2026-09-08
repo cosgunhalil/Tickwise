@@ -31,6 +31,7 @@ Or download a release binary from the Tickwise repository.
 
 ## Further reading
 
+- The Unity tutorial, fifteen minutes from install to a caught desync: https://github.com/cosgunhalil/Tickwise/blob/main/docs/unity-tutorial.md
 - The Tickwise repository: https://github.com/cosgunhalil/Tickwise
 - The Rust tutorial, which walks the same workflow on the reference simulation: https://github.com/cosgunhalil/Tickwise/blob/main/docs/tutorial.md
 - The hash coverage checklist, which says what belongs in each hash: https://github.com/cosgunhalil/Tickwise/blob/main/docs/hash-coverage.md

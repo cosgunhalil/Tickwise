@@ -46,7 +46,7 @@ tickwise compare a.rec b.rec        # first divergent tick between two sessions
 tickwise diff a.dump b.dump         # field-level differences at that tick
 ```
 
-New here? [Find your first desync in 15 minutes](https://github.com/cosgunhalil/Tickwise/blob/main/docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named. Wiring up your own game? The [hash coverage checklist](https://github.com/cosgunhalil/Tickwise/blob/main/docs/hash-coverage.md) says what belongs in each hash and why, and the [light hash budget guide](https://github.com/cosgunhalil/Tickwise/blob/main/docs/light-hash-budget.md) shows the measured per-tick cost, 20 nanoseconds for the recorder itself.
+New here? [Find your first desync in 15 minutes](https://github.com/cosgunhalil/Tickwise/blob/main/docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named. Unity developer? [The Unity tutorial](https://github.com/cosgunhalil/Tickwise/blob/main/docs/unity-tutorial.md) does the same inside the editor with the Tickwise package. Wiring up your own game? The [hash coverage checklist](https://github.com/cosgunhalil/Tickwise/blob/main/docs/hash-coverage.md) says what belongs in each hash and why, and the [light hash budget guide](https://github.com/cosgunhalil/Tickwise/blob/main/docs/light-hash-budget.md) shows the measured per-tick cost, 20 nanoseconds for the recorder itself.
 
 ## The problem
 
