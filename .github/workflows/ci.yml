@@ -180,6 +180,42 @@ jobs:
             exit 1
           fi
 
+  bevy:
+    name: tickwise-bevy on ubuntu-latest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bridges/tickwise-bevy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridges/tickwise-bevy
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Lint with warnings as errors
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run the headless tests
+        run: cargo test
+
+      - name: Build documentation with warnings denied
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Check that the crate is publishable
+        run: cargo package --no-verify --allow-dirty
+
   unity-package:
     name: unity package layout
     runs-on: ubuntu-latest

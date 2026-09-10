@@ -1,0 +1,30 @@
+[package]
+name = "tickwise-bevy"
+description = "Record, replay, and diff deterministic Bevy simulations: a Reflect-walking Tickwise probe and a fixed timestep plugin"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cosgunhalil/Tickwise"
+documentation = "https://docs.rs/tickwise-bevy"
+keywords = ["bevy", "determinism", "desync", "replay", "netcode"]
+categories = ["game-development", "development-tools::debugging"]
+readme = "README.md"
+
+[dependencies]
+# Only the ECS, app, and reflection crates. A determinism tool has no
+# business pulling in rendering, audio, or windowing, and headless tests
+# stay fast this way.
+#
+# `std` is on because the reflection impls for the standard collections
+# live behind it, and a game's state is full of them. Everything else
+# stays off: no glam, no serialization, no auto registration.
+bevy_app = { version = "0.19", default-features = false, features = ["std"] }
+bevy_ecs = { version = "0.19", default-features = false, features = ["std"] }
+bevy_reflect = { version = "0.19", default-features = false, features = ["std"] }
+# The version is what a published copy of this crate depends on; the path
+# is what the repository builds against. Raise the version together with
+# the core when a release needs a newer one.
+tickwise = { path = "../../crates/tickwise", version = "0.2.2" }
+
+[workspace]
