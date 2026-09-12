@@ -6,7 +6,8 @@ namespace Tickwise
 {
     /// <summary>
     /// Records inputs and per-tick hashes from your game loop into a .rec file
-    /// that <c>tickwise compare</c> understands.
+    /// that <c>tickwise compare</c> understands, plus state dumps on an
+    /// interval or on demand for <c>tickwise diff</c>.
     /// </summary>
     /// <remarks>
     /// The recorder has no dependency on the engine and no opinion about your
@@ -21,6 +22,7 @@ namespace Tickwise
         private static byte s_empty;
 
         private readonly RecorderHandle _handle;
+        private TickwiseDump _scratch;
         private bool _finished;
         private bool _disposed;
 
@@ -75,6 +77,7 @@ namespace Tickwise
                     SnapshotEvery = config.SnapshotEvery,
                     HashAlgoId = config.HashAlgoId,
                     InputFormatId = config.InputFormatId,
+                    DumpInterval = config.DumpInterval,
                 };
                 TickwiseStatus status = Native.tickwise_recorder_create(
                     pathBytes, (UIntPtr)pathBytes.Length, ref native, out IntPtr pointer);
@@ -92,11 +95,12 @@ namespace Tickwise
 
         /// <summary>
         /// Records one tick: the input bytes and the probe's light hash, plus
-        /// its full hash on the ticks where the recorder keeps one. Call
-        /// exactly once per tick, in order. The first call may use any tick;
-        /// every later call must advance by exactly one.
+        /// its full hash on the ticks where the recorder keeps one and, when
+        /// <see cref="RecorderConfig.DumpInterval"/> is set, a state dump on
+        /// its own interval. Call exactly once per tick, in order. The first
+        /// call may use any tick; every later call must advance by exactly one.
         /// </summary>
-        /// <exception cref="TickwiseException">The tick was out of order, the recorder is finished, or the write failed.</exception>
+        /// <exception cref="TickwiseException">The tick was out of order, the recorder is finished, the write failed, or a dump was due and the probe does not implement <see cref="ITickwiseStateWriter"/>.</exception>
         public void RecordTick(ulong tick, ReadOnlySpan<byte> inputs, IDeterminismProbe probe)
         {
             if (probe == null)
@@ -106,12 +110,17 @@ namespace Tickwise
             ulong light = probe.LightHash();
             ulong full = WantsFullHash(tick) ? probe.FullHash() : 0;
             RecordTick(tick, inputs, light, full);
+            if (WantsDump(tick))
+            {
+                RecordDump(tick, StateWriterOf(probe));
+            }
         }
 
         /// <summary>
         /// Records one tick with hashes you computed yourself. The full hash
         /// is ignored on ticks where <see cref="WantsFullHash"/> is false, so
-        /// pass zero there rather than paying for it.
+        /// pass zero there rather than paying for it. Dumps are not scheduled
+        /// through this call; check <see cref="WantsDump"/> yourself.
         /// </summary>
         public void RecordTick(ulong tick, ReadOnlySpan<byte> inputs, ulong lightHash, ulong fullHash)
         {
@@ -150,6 +159,50 @@ namespace Tickwise
         {
             ThrowIfUnusable();
             return Native.tickwise_recorder_wants_snapshot(_handle, tick);
+        }
+
+        /// <summary>
+        /// True when <see cref="RecorderConfig.DumpInterval"/> asks for a
+        /// state dump at this tick. The probe form of <see cref="RecordTick(ulong, ReadOnlySpan{byte}, IDeterminismProbe)"/>
+        /// handles it; the hash form leaves it to you.
+        /// </summary>
+        public bool WantsDump(ulong tick)
+        {
+            ThrowIfUnusable();
+            return Native.tickwise_recorder_wants_dump(_handle, tick);
+        }
+
+        /// <summary>
+        /// Records a state dump the writer fills, on the interval or on demand,
+        /// for example next to a round start marker. Dumps in a .rec file give
+        /// <c>tickwise diff a.rec b.rec</c> field names with no replay.
+        /// </summary>
+        public void RecordDump(ulong tick, ITickwiseStateWriter writer)
+        {
+            if (writer == null)
+            {
+                throw new ArgumentNullException(nameof(writer));
+            }
+            ThrowIfUnusable();
+            if (_scratch == null)
+            {
+                _scratch = new TickwiseDump();
+            }
+            _scratch.Clear();
+            writer.WriteState(_scratch);
+            RecordDump(tick, _scratch);
+        }
+
+        /// <summary>Records a dump you built yourself. The dump is copied and stays usable.</summary>
+        public void RecordDump(ulong tick, TickwiseDump dump)
+        {
+            if (dump == null)
+            {
+                throw new ArgumentNullException(nameof(dump));
+            }
+            ThrowIfUnusable();
+            TickwiseStatus status = Native.tickwise_recorder_record_dump(_handle, tick, dump.Handle);
+            TickwiseException.ThrowIfFailed(status, "tickwise_recorder_record_dump");
         }
 
         /// <summary>Records a serialized state snapshot at the given tick.</summary>
@@ -222,8 +275,27 @@ namespace Tickwise
                 // Marked disposed only after the finish attempt, because
                 // Finish refuses to run on a disposed recorder.
                 _disposed = true;
+                _scratch?.Dispose();
+                _scratch = null;
                 _handle.Dispose();
             }
+        }
+
+        /// <summary>
+        /// The probe as a state writer, or a clear failure: a dump interval
+        /// with a probe that cannot write state is a configuration error,
+        /// caught at the first dump tick rather than at diff time.
+        /// </summary>
+        internal static ITickwiseStateWriter StateWriterOf(IDeterminismProbe probe)
+        {
+            if (probe is ITickwiseStateWriter writer)
+            {
+                return writer;
+            }
+            throw new TickwiseException(
+                TickwiseStatus.InvalidArgument,
+                $"a state dump is due but {probe.GetType().Name} does not implement ITickwiseStateWriter; " +
+                "implement it, or use the hash form of RecordTick and record dumps yourself");
         }
 
         private void ThrowIfUnusable()

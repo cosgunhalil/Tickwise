@@ -55,6 +55,15 @@ public:
 	int64 InputFormatId = 0;
 
 	/**
+	 * How often a state dump is recorded. Zero, the default, records none.
+	 * With dumps in both recordings, `tickwise diff a.rec b.rec` names the
+	 * fields that differ with no replay, at the cost of a full state walk
+	 * every N ticks. The probe must implement Tickwise State Writer in C++.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tickwise|Recording", meta = (ClampMin = "0"))
+	int32 DumpInterval = 0;
+
+	/**
 	 * Records a tick from every TickComponent call. Correct only when the
 	 * game steps its simulation once per component tick at a fixed frame
 	 * rate. Off by default; call RecordTick from your own fixed step instead.
@@ -95,6 +104,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Tickwise")
 	void RecordMarker(const FString& Label);
 
+	/**
+	 * Records the probe's state dump at the last recorded tick, on demand,
+	 * for example next to a round start marker. The probe must implement
+	 * Tickwise State Writer. Returns false on failure; GetLastError says why.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Tickwise")
+	bool RecordDump();
+
 	UFUNCTION(BlueprintPure, Category = "Tickwise")
 	bool IsRecording() const;
 
@@ -118,6 +135,7 @@ private:
 	void Fail(const FString& Message);
 
 	tickwise::Recorder Recorder;
+	tickwise::Dump Dump;
 	TArray<uint8> PendingInputs;
 	uint64 NextTick = 0;
 	FString LastError;

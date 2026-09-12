@@ -1,14 +1,16 @@
 //! Pass 1 over the C boundary: the recorder as push calls.
 //!
-//! The Rust recorder pulls hashes from a probe. Here the caller computes
-//! them and passes them in, so nothing ever calls back into the host
-//! language. `tickwise_recorder_wants_full_hash` tells the caller when the
-//! expensive full hash is due.
+//! The Rust recorder pulls hashes and dumps from a probe. Here the caller
+//! computes them and passes them in, so nothing ever calls back into the
+//! host language. `tickwise_recorder_wants_full_hash` and
+//! `tickwise_recorder_wants_dump` tell the caller when the expensive
+//! paths are due.
 
+use crate::dump::TickwiseDump;
 use crate::error::{FfiError, TickwiseStatus, guard};
 use std::io::{BufWriter, Write};
 use tickwise::format::SnapshotPolicy;
-use tickwise::{DeterminismProbe, Recorder, RecorderConfig, SessionMeta, StateDump};
+use tickwise::{Recorder, RecorderConfig, SessionMeta};
 
 /// Recorder configuration as plain C data.
 ///
@@ -46,32 +48,17 @@ pub struct TickwiseRecorderConfig {
     /// Caller-declared identifier of the input encoding. Replay refuses
     /// a recording whose id differs from the build's.
     pub input_format_id: u64,
+    /// State dump interval in ticks. Zero records none. With dumps in
+    /// both recordings, `tickwise diff a.rec b.rec` reaches field level
+    /// with no replay. Check `tickwise_recorder_wants_dump` each tick and
+    /// supply the dump with `tickwise_recorder_record_dump`.
+    pub dump_interval: u32,
 }
 
 /// An open recording session. Opaque to C; create with
 /// `tickwise_recorder_create`, release with `tickwise_recorder_destroy`.
 pub struct TickwiseRecorder {
     inner: Option<Recorder<BufWriter<std::fs::File>>>,
-}
-
-/// The probe the core sees: the two hashes the caller already computed.
-struct PushedHashes {
-    light: u64,
-    full: u64,
-}
-
-impl DeterminismProbe for PushedHashes {
-    fn light_hash(&self) -> u64 {
-        self.light
-    }
-
-    fn full_hash(&self) -> u64 {
-        self.full
-    }
-
-    fn state_dump(&self) -> StateDump {
-        StateDump::empty()
-    }
 }
 
 /// Borrows `len` bytes at `ptr` for the duration of the call.
@@ -97,7 +84,7 @@ unsafe fn bytes<'a>(ptr: *const u8, len: usize, what: &str) -> Result<&'a [u8], 
 ///
 /// # Safety
 ///
-/// Same contract as `bytes`.
+/// Same contract as [`bytes`].
 unsafe fn utf8<'a>(ptr: *const u8, len: usize, what: &str) -> Result<&'a str, FfiError> {
     // SAFETY: forwarded unchanged from this function's own contract.
     let raw = unsafe { bytes(ptr, len, what)? };
@@ -130,8 +117,8 @@ unsafe fn live<'a>(
 }
 
 /// Fills a configuration with the defaults the Rust API uses: empty
-/// metadata, a full hash every 300 ticks, no snapshots, hash algorithm 0,
-/// input format 0.
+/// metadata, a full hash every 300 ticks, no snapshots, no dumps, hash
+/// algorithm 0, input format 0.
 ///
 /// # Safety
 ///
@@ -162,6 +149,7 @@ pub unsafe extern "C" fn tickwise_recorder_config_default(
             },
             hash_algo_id: defaults.hash_algo_id,
             input_format_id: defaults.input_format_id,
+            dump_interval: defaults.dump_interval,
         };
         // SAFETY: out is non-null and the caller promises it is valid for
         // one write of this type.
@@ -224,9 +212,7 @@ pub unsafe extern "C" fn tickwise_recorder_create(
             },
             hash_algo_id: c.hash_algo_id,
             input_format_id: c.input_format_id,
-            // Dumps need a dump builder over the C ABI, which is the
-            // second iteration; until then the push model records none.
-            dump_interval: 0,
+            dump_interval: c.dump_interval,
         };
         let recorder = Recorder::create(path, rust_config)?;
         let handle = Box::new(TickwiseRecorder {
@@ -240,11 +226,13 @@ pub unsafe extern "C" fn tickwise_recorder_create(
 }
 
 /// Records one tick: the input bytes, the light hash, and the full hash
-/// when `tickwise_recorder_wants_full_hash` is true for this tick.
-/// On other ticks `full_hash` is ignored and may be zero.
+/// when `tickwise_recorder_wants_full_hash` is true for this tick. On
+/// other ticks `full_hash` is ignored and may be zero.
 ///
 /// Call exactly once per tick, in tick order. The first call may use any
-/// starting tick, every later call must advance by exactly one.
+/// starting tick, every later call must advance by exactly one. Dumps are
+/// separate: check `tickwise_recorder_wants_dump` and call
+/// `tickwise_recorder_record_dump` after this.
 ///
 /// # Safety
 ///
@@ -265,11 +253,7 @@ pub unsafe extern "C" fn tickwise_recorder_record_tick(
         let recorder = unsafe { live(rec)? };
         // SAFETY: inputs obeys this function's contract.
         let inputs = unsafe { bytes(inputs, inputs_len, "inputs")? };
-        let probe = PushedHashes {
-            light: light_hash,
-            full: full_hash,
-        };
-        recorder.record_tick(tick, inputs, &probe)?;
+        recorder.record_tick_hashes(tick, inputs, light_hash, full_hash)?;
         Ok(())
     })
 }
@@ -289,6 +273,52 @@ pub unsafe extern "C" fn tickwise_recorder_wants_full_hash(
 ) -> bool {
     // SAFETY: rec obeys the handle contract, and this function only reads.
     unsafe { live(rec.cast_mut()) }.is_ok_and(|recorder| recorder.wants_full_hash(tick))
+}
+
+/// Returns true when the configured dump interval asks for a state dump
+/// at this tick. Build one with the `tickwise_dump_*` calls and hand it to
+/// `tickwise_recorder_record_dump`.
+///
+/// Returns false for a null or finished recorder.
+///
+/// # Safety
+///
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn tickwise_recorder_wants_dump(
+    rec: *const TickwiseRecorder,
+    tick: u64,
+) -> bool {
+    // SAFETY: rec obeys the handle contract, and this function only reads.
+    unsafe { live(rec.cast_mut()) }.is_ok_and(|recorder| recorder.wants_dump(tick))
+}
+
+/// Records a state dump at the given tick, on the interval or on demand.
+/// The dump is copied; the caller keeps ownership and may clear and reuse
+/// it.
+///
+/// # Safety
+///
+/// `rec` obeys the handle contract of `tickwise_recorder_destroy`; `dump`
+/// obeys the handle contract of `tickwise_dump_destroy`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn tickwise_recorder_record_dump(
+    rec: *mut TickwiseRecorder,
+    tick: u64,
+    dump: *const TickwiseDump,
+) -> TickwiseStatus {
+    guard(|| {
+        // SAFETY: rec obeys the handle contract.
+        let recorder = unsafe { live(rec)? };
+        if dump.is_null() {
+            return Err(FfiError::null("dump"));
+        }
+        // SAFETY: non-null and the caller promises a live dump handle that
+        // is not aliased mutably during this call.
+        let dump = unsafe { &*dump };
+        recorder.record_state_dump(tick, dump.inner.clone())?;
+        Ok(())
+    })
 }
 
 /// Returns true when the snapshot policy asks for a snapshot at this

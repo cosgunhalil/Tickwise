@@ -11,8 +11,8 @@ namespace Tickwise
     /// <remarks>
     /// Strings and byte buffers cross the boundary as a pointer plus a
     /// length. Booleans cross as one byte, which is why every bool return
-    /// carries an explicit I1 marshalling attribute: the default would read
-    /// four bytes and pick up garbage.
+    /// and parameter carries an explicit I1 marshalling attribute: the
+    /// default would read four bytes and pick up garbage.
     /// </remarks>
     internal static class Native
     {
@@ -40,6 +40,7 @@ namespace Tickwise
             public uint SnapshotEvery;
             public ushort HashAlgoId;
             public ulong InputFormatId;
+            public uint DumpInterval;
         }
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
@@ -56,6 +57,8 @@ namespace Tickwise
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         internal static extern ulong tickwise_xxh3_64(ref byte data, UIntPtr len);
+
+        // The recorder, Pass 1.
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         internal static extern TickwiseStatus tickwise_recorder_config_default(
@@ -86,6 +89,16 @@ namespace Tickwise
         internal static extern bool tickwise_recorder_wants_snapshot(RecorderHandle recorder, ulong tick);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        internal static extern bool tickwise_recorder_wants_dump(RecorderHandle recorder, ulong tick);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_recorder_record_dump(
+            RecorderHandle recorder,
+            ulong tick,
+            DumpHandle dump);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         internal static extern TickwiseStatus tickwise_recorder_record_snapshot(
             RecorderHandle recorder,
             ulong tick,
@@ -104,6 +117,110 @@ namespace Tickwise
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void tickwise_recorder_destroy(IntPtr recorder);
+
+        // The dump builder.
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr tickwise_dump_new();
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void tickwise_dump_destroy(IntPtr dump);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_clear(DumpHandle dump);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern UIntPtr tickwise_dump_len(DumpHandle dump);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_null(
+            DumpHandle dump, byte[] path, UIntPtr pathLen);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_bool(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, [MarshalAs(UnmanagedType.I1)] bool value);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_i64(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, long value);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_u64(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, ulong value);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_f32(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, float value);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_f64(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, double value);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_str(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, byte[] value, UIntPtr valueLen);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_bytes(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, ref byte value, UIntPtr valueLen);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_dump_set_len(
+            DumpHandle dump, byte[] path, UIntPtr pathLen, ulong count);
+
+        // The replayer, Pass 2.
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_replayer_open(
+            byte[] path,
+            UIntPtr pathLen,
+            ulong[] dumpAtTicks,
+            UIntPtr dumpCount,
+            [MarshalAs(UnmanagedType.I1)] bool verifyHashes,
+            [MarshalAs(UnmanagedType.I1)] bool checkInputFormat,
+            ulong expectedInputFormatId,
+            out IntPtr replayer);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_replayer_tick_range(
+            ReplayerHandle replayer, out ulong first, out ulong last);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        internal static extern bool tickwise_replayer_next_step(
+            ReplayerHandle replayer, out ulong tick, out IntPtr inputs, out UIntPtr inputsLen);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        internal static extern bool tickwise_replayer_wants_dump(ReplayerHandle replayer, ulong tick);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        internal static extern bool tickwise_replayer_wants_full_hash(ReplayerHandle replayer, ulong tick);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_replayer_after_tick(
+            ReplayerHandle replayer, ulong lightHash, ulong fullHash, DumpHandle dump);
+
+        /// <summary>The same entry point with no dump, since a SafeHandle argument cannot be null.</summary>
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, EntryPoint = "tickwise_replayer_after_tick")]
+        internal static extern TickwiseStatus tickwise_replayer_after_tick_without_dump(
+            ReplayerHandle replayer, ulong lightHash, ulong fullHash, IntPtr dump);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        internal static extern bool tickwise_replayer_nearest_snapshot_before(
+            ReplayerHandle replayer, ulong tick, out ulong snapshotTick, out IntPtr data, out UIntPtr dataLen);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_replayer_seek_to(ReplayerHandle replayer, ulong tick);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern TickwiseStatus tickwise_replayer_finish(
+            ReplayerHandle replayer, byte[] path, UIntPtr pathLen);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void tickwise_replayer_destroy(IntPtr replayer);
 
         /// <summary>
         /// Reads a NUL-terminated UTF-8 string owned by the native library.
@@ -157,6 +274,48 @@ namespace Tickwise
         protected override bool ReleaseHandle()
         {
             Native.tickwise_recorder_destroy(handle);
+            return true;
+        }
+    }
+
+    /// <summary>Owns a native dump builder and destroys it exactly once.</summary>
+    internal sealed class DumpHandle : SafeHandle
+    {
+        public DumpHandle() : base(IntPtr.Zero, ownsHandle: true)
+        {
+        }
+
+        public override bool IsInvalid => handle == IntPtr.Zero;
+
+        internal void Adopt(IntPtr pointer)
+        {
+            SetHandle(pointer);
+        }
+
+        protected override bool ReleaseHandle()
+        {
+            Native.tickwise_dump_destroy(handle);
+            return true;
+        }
+    }
+
+    /// <summary>Owns a native replayer and destroys it exactly once.</summary>
+    internal sealed class ReplayerHandle : SafeHandle
+    {
+        public ReplayerHandle() : base(IntPtr.Zero, ownsHandle: true)
+        {
+        }
+
+        public override bool IsInvalid => handle == IntPtr.Zero;
+
+        internal void Adopt(IntPtr pointer)
+        {
+            SetHandle(pointer);
+        }
+
+        protected override bool ReleaseHandle()
+        {
+            Native.tickwise_replayer_destroy(handle);
             return true;
         }
     }

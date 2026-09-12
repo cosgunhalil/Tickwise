@@ -6,6 +6,7 @@ use std::ffi::{CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use tickwise::RecordError;
 use tickwise::format::FormatError;
+use tickwise::replayer::ReplayError;
 
 /// Result of every fallible call in the C surface.
 ///
@@ -23,15 +24,34 @@ pub enum TickwiseStatus {
     InvalidArgument = 2,
     /// A string argument was not valid UTF-8.
     InvalidUtf8 = 3,
-    /// Creating, writing, or finishing the file failed.
+    /// Creating, reading, writing, or finishing a file failed, or the
+    /// file is not a valid recording.
     Io = 4,
     /// Ticks must advance by exactly one between record calls.
     NonSequentialTick = 5,
-    /// The recorder was already finished. Only destroy is allowed now.
+    /// The recorder or replayer was already finished. Only destroy is
+    /// allowed now.
     AlreadyFinished = 6,
     /// The library panicked internally. This is a Tickwise bug; please
     /// report it with the last error message.
     Panic = 7,
+    /// A live hash disagrees with the recorded one: the replay is not
+    /// reproducing the recorded session. The message names the tick.
+    HashMismatch = 8,
+    /// The recording declares a different input encoding than the caller
+    /// expects, decision #11. Feeding its inputs to the simulation would
+    /// silently produce garbage.
+    InputFormatMismatch = 9,
+    /// A requested tick lies outside the recording.
+    TickOutOfRange = 10,
+    /// The replay protocol was broken: after_tick without a step, or a
+    /// second next_step before the previous step was completed.
+    ProtocolMisuse = 11,
+    /// A dump was requested at this tick and none was supplied. The step
+    /// stays pending; call after_tick again with the dump.
+    MissingDump = 12,
+    /// The recording holds no ticks at all.
+    EmptyRecording = 13,
 }
 
 impl TickwiseStatus {
@@ -45,6 +65,12 @@ impl TickwiseStatus {
             Self::NonSequentialTick => "non-sequential tick\0",
             Self::AlreadyFinished => "already finished\0",
             Self::Panic => "internal panic\0",
+            Self::HashMismatch => "hash mismatch\0",
+            Self::InputFormatMismatch => "input format mismatch\0",
+            Self::TickOutOfRange => "tick out of range\0",
+            Self::ProtocolMisuse => "protocol misuse\0",
+            Self::MissingDump => "missing dump\0",
+            Self::EmptyRecording => "empty recording\0",
         }
     }
 }
@@ -74,6 +100,23 @@ impl From<RecordError> for FfiError {
             RecordError::NonSequentialTick { .. } => TickwiseStatus::NonSequentialTick,
             RecordError::Format(FormatError::TooLarge) => TickwiseStatus::InvalidArgument,
             _ => TickwiseStatus::Io,
+        };
+        Self::new(status, err.to_string())
+    }
+}
+
+impl From<ReplayError> for FfiError {
+    fn from(err: ReplayError) -> Self {
+        let status = match &err {
+            ReplayError::Format(_) => TickwiseStatus::Io,
+            ReplayError::InputFormatMismatch { .. } => TickwiseStatus::InputFormatMismatch,
+            ReplayError::HashMismatch { .. } => TickwiseStatus::HashMismatch,
+            ReplayError::TickOutOfRange { .. } => TickwiseStatus::TickOutOfRange,
+            ReplayError::EmptyRecording => TickwiseStatus::EmptyRecording,
+            ReplayError::NoPendingStep | ReplayError::StepSkipped { .. } => {
+                TickwiseStatus::ProtocolMisuse
+            }
+            ReplayError::MissingDump { .. } => TickwiseStatus::MissingDump,
         };
         Self::new(status, err.to_string())
     }

@@ -4,11 +4,13 @@ The C ABI over the Tickwise core. Every non-Rust engine bridge stands on this cr
 
 ## Status
 
-Under construction, milestone M5 of the v2 roadmap. The first version covers Pass 1 only: recording with caller-provided hashes, so that `tickwise compare` works on sessions recorded from any engine. The replayer and a dump builder follow in a second iteration.
+Under construction, milestone M5 of the v2 roadmap, ABI version 2. Both passes cross the boundary: Pass 1 records with caller-provided hashes and, when asked, state dumps built field by field, so `tickwise compare` and `tickwise diff` work on sessions recorded from any engine; Pass 2 replays a recording step by step, verifies the live hashes, and writes the dumps `tickwise diff` compares.
 
 ## Shape
 
-Tickwise in Rust pulls hashes from a probe trait. Across a C boundary there is no trait object, and callbacks into managed code are the classic pain point of engine plugins, so the C surface flips to a push model: the caller computes its hashes and passes them in as integers. `tickwise_recorder_wants_full_hash` tells the caller when the expensive full hash is due, so it is computed only on the ticks the recorder will keep.
+Tickwise in Rust pulls hashes and dumps from a probe trait. Across a C boundary there is no trait object, and callbacks into managed code are the classic pain point of engine plugins, so the C surface flips to a push model: the caller computes its hashes and passes them in as integers, and builds its dumps with `tickwise_dump_set_*` calls and passes the handle in. `tickwise_recorder_wants_full_hash` and `tickwise_recorder_wants_dump` tell the caller when the expensive work is due, so it happens only on the ticks the recorder will keep.
+
+The replayer follows the same rule. `tickwise_replayer_next_step` hands back the next tick and its recorded inputs; the caller advances its own simulation and reports back with `tickwise_replayer_after_tick`, passing the light hash, the full hash when `tickwise_replayer_wants_full_hash` says so, and a dump when `tickwise_replayer_wants_dump` says so. A hash that disagrees with the recording comes back as `HashMismatch` naming the tick, which is the self-check: a simulation that cannot reproduce its own recording is not ready to hunt cross-client desyncs. `tickwise_replayer_finish` writes the collected dumps as a `.dump` file.
 
 The crate is built three ways from one source:
 
@@ -34,8 +36,8 @@ For local Unity work before the release workflow exists, `scripts/build-for-unit
 
 Two layers cover the surface:
 
-- **Rust tests** under `tests/` call the exported functions directly through the rlib. They cover the round trip through the core reader, `compare` finding an injected divergence, and every misuse path: null handles, wrong lengths, invalid UTF-8, out-of-order ticks, double finish, use after finish.
-- **The C harness** in `ctest/harness.c` is the real consumer test. `tests/c_harness.rs` finds the system C compiler through the `cc` crate, MSVC included without a developer shell, compiles the harness against the header and the shared library with warnings as errors, and runs it. The harness records a small integer simulation twice, once clean and once with a defect injected at tick 421, and drives the misuse paths from C. The recordings stay in `target/debug/ctest/`, and CI then runs `tickwise inspect` and `tickwise compare` on them and checks the exit code.
+- **Rust tests** under `tests/` call the exported functions directly through the rlib. They cover the round trip through the core reader, `compare` finding an injected divergence, dumps of every value type surviving the trip, a replay that reproduces and one that does not, and every misuse path: null handles, wrong lengths, invalid UTF-8, out-of-order ticks, double finish, use after finish, `after_tick` without a step, a step without its `after_tick`, a dump owed and not given.
+- **The C harness** in `ctest/harness.c` is the real consumer test. `tests/c_harness.rs` finds the system C compiler through the `cc` crate, MSVC included without a developer shell, compiles the harness against the header and the shared library with warnings as errors, and runs it. The harness records a small integer simulation twice with a dump every 100 ticks, once clean and once with a defect injected at tick 421, replays the clean session with every hash verified into a `.dump`, and drives the misuse paths from C. The files stay in `target/debug/ctest/`, and CI then runs `tickwise inspect`, `tickwise compare`, and `tickwise diff` on them and checks the exit codes.
 
 Both run with `cargo test --manifest-path bridges/tickwise-ffi/Cargo.toml`. A C compiler must be installed: MSVC Build Tools on Windows, Xcode command line tools on macOS, gcc or clang on Linux.
 

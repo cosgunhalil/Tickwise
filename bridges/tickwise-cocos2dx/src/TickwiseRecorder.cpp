@@ -131,6 +131,24 @@ void TickwiseRecorder::recordMarker(const std::string& label) {
     }
 }
 
+bool TickwiseRecorder::recordDump() {
+    if (!recorder_.is_recording()) {
+        return false;
+    }
+    if (!probe_) {
+        fail("no probe: call setProbe before recording");
+        return false;
+    }
+    uint64_t tick = nextTick_ == 0 ? 0 : nextTick_ - 1;
+    dump_.clear();
+    probe_->state_dump(dump_);
+    if (recorder_.record_dump(tick, dump_) != tickwise::Status::Ok) {
+        fail(recorder_.last_error());
+        return false;
+    }
+    return true;
+}
+
 bool TickwiseRecorder::isRecording() const {
     return recorder_.is_recording();
 }

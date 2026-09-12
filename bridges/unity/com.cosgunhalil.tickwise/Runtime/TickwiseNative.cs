@@ -7,7 +7,7 @@ namespace Tickwise
         /// The C surface version this package was written against. The native
         /// library must report the same value or every call is refused.
         /// </summary>
-        public const uint ExpectedAbiVersion = 1;
+        public const uint ExpectedAbiVersion = 2;
 
         /// <summary>The C surface version the loaded native library reports.</summary>
         public static uint AbiVersion => Native.tickwise_ffi_abi_version();

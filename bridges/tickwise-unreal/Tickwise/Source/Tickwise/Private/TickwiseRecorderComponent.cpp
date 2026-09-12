@@ -1,6 +1,7 @@
 // Licensed under MIT OR Apache-2.0, at your option. See LICENSE-MIT and LICENSE-APACHE.
 
 #include "TickwiseRecorderComponent.h"
+#include "TickwiseDump.h"
 #include "TickwiseModule.h"
 
 #include "GameFramework/Actor.h"
@@ -9,7 +10,12 @@
 
 namespace
 {
-	/** Adapts a UObject implementing the probe interface to the C++ wrapper. */
+	/**
+	 * Adapts a UObject implementing the probe interface to the C++ wrapper.
+	 * The state dump goes through the native state writer interface when
+	 * the object implements it; otherwise the dump stays empty and the
+	 * component reports the gap once.
+	 */
 	struct FProbeAdapter : tickwise::Probe
 	{
 		explicit FProbeAdapter(UObject* InObject) : Object(InObject) {}
@@ -22,6 +28,15 @@ namespace
 		uint64_t full_hash() const override
 		{
 			return static_cast<uint64_t>(ITickwiseProbe::Execute_FullHash(Object));
+		}
+
+		void state_dump(tickwise::Dump& Dump) const override
+		{
+			if (const ITickwiseStateWriter* Writer = Cast<ITickwiseStateWriter>(Object))
+			{
+				FTickwiseDump Wrapper(Dump);
+				Writer->WriteState(Wrapper);
+			}
 		}
 
 		UObject* Object;
@@ -65,8 +80,19 @@ bool UTickwiseRecorderComponent::StartRecording(const FString& Path)
 	Config.created_at = static_cast<uint64_t>(FDateTime::UtcNow().ToUnixTimestamp());
 	Config.full_hash_interval = static_cast<uint32_t>(FMath::Max(FullHashInterval, 0));
 	Config.input_format_id = static_cast<uint64_t>(InputFormatId);
+	Config.dump_interval = static_cast<uint32_t>(FMath::Max(DumpInterval, 0));
 	// FTickwiseHasher and the Blueprint library both produce xxh3.
 	Config.hash_algo_id = tickwise::hash_algo::kXxh3;
+
+	if (DumpInterval > 0)
+	{
+		UObject* ProbeObject = ResolveProbe();
+		if (ProbeObject && !ProbeObject->GetClass()->ImplementsInterface(UTickwiseStateWriter::StaticClass()))
+		{
+			UE_LOG(LogTickwise, Warning, TEXT("DumpInterval is %d but %s does not implement Tickwise State Writer; dumps will be empty"),
+				DumpInterval, *ProbeObject->GetName());
+		}
+	}
 
 	if (Recorder.open(ToUtf8(RecordingPath), Config) != tickwise::Status::Ok)
 	{
@@ -133,6 +159,36 @@ void UTickwiseRecorderComponent::RecordMarker(const FString& Label)
 	{
 		Fail(UTF8_TO_TCHAR(Recorder.last_error().c_str()));
 	}
+}
+
+bool UTickwiseRecorderComponent::RecordDump()
+{
+	if (!Recorder.is_recording())
+	{
+		return false;
+	}
+	UObject* ProbeObject = ResolveProbe();
+	if (!ProbeObject)
+	{
+		Fail(TEXT("no probe: set the Probe property or implement Tickwise Probe on the owning actor"));
+		return false;
+	}
+	if (!ProbeObject->GetClass()->ImplementsInterface(UTickwiseStateWriter::StaticClass()))
+	{
+		Fail(FString::Printf(TEXT("%s does not implement Tickwise State Writer, so there is no state to dump"), *ProbeObject->GetName()));
+		return false;
+	}
+
+	uint64 Tick = NextTick == 0 ? 0 : NextTick - 1;
+	FProbeAdapter Adapter(ProbeObject);
+	Dump.clear();
+	Adapter.state_dump(Dump);
+	if (Recorder.record_dump(Tick, Dump) != tickwise::Status::Ok)
+	{
+		Fail(UTF8_TO_TCHAR(Recorder.last_error().c_str()));
+		return false;
+	}
+	return true;
 }
 
 bool UTickwiseRecorderComponent::IsRecording() const

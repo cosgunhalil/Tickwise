@@ -1,7 +1,7 @@
 //! End to end: two recordings that carry state dumps, compared and then
 //! diffed straight from the `.rec` files with no replay in between.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tickwise::{DeterminismProbe, Recorder, RecorderConfig, StateDump};
 use tickwise_cli::diff::{DiffOptions, render as render_diff};
 
@@ -54,7 +54,7 @@ fn record(path: &PathBuf, strike: Option<u64>) {
     rec.finish().unwrap();
 }
 
-fn args(command: &str, a: &PathBuf, b: &PathBuf, extra: &[&str]) -> Vec<String> {
+fn args(command: &str, a: &Path, b: &Path, extra: &[&str]) -> Vec<String> {
     let mut out = vec![
         command.to_string(),
         a.display().to_string(),

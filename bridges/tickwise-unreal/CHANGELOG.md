@@ -12,3 +12,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `ITickwiseProbe`, a Blueprint-implementable interface for the light and full hashes.
 - `FTickwiseHasher` for C++ and `UTickwiseHashLibrary` for Blueprint, both producing xxh3 over a fixed byte layout.
 - `scripts/stage-ffi.ps1`, which builds the native library and stages headers and Windows binaries into the plugin's `ThirdParty` folder.
+- State dumps. `DumpInterval` on the recorder component records a state dump every N ticks, `RecordDump` takes one on demand at the last recorded tick, and `ITickwiseStateWriter`, a C++ only interface implemented beside the probe, writes the state into `FTickwiseDump` by field name with overloads for the common engine types. With dumps in both recordings, `tickwise diff a.rec b.rec` names the fields that differ with no replay. Pass 2 replay in Unreal goes through `tickwise::Replayer` from the shared C++ header, which `TickwiseNative.h` already includes.

@@ -30,6 +30,7 @@ for required in \
     Source/Tickwise/Public/TickwiseModule.h \
     Source/Tickwise/Public/TickwiseNative.h \
     Source/Tickwise/Public/TickwiseProbe.h \
+    Source/Tickwise/Public/TickwiseDump.h \
     Source/Tickwise/Public/TickwiseHashing.h \
     Source/Tickwise/Public/TickwiseRecorderComponent.h \
     Source/Tickwise/Private/TickwiseModule.cpp \

@@ -5,7 +5,9 @@ namespace Tickwise
     /// gameplay state that Tickwise records every tick and compares across
     /// machines. Tickwise never runs your simulation; you call
     /// <see cref="TickwiseRecorder.RecordTick(ulong, System.ReadOnlySpan{byte}, IDeterminismProbe)"/>
-    /// from your own loop and it asks the probe for what it needs.
+    /// from your own loop and it asks the probe for what it needs. Implement
+    /// <see cref="ITickwiseStateWriter"/> on the same object for the
+    /// field-level diff, which needs names, not hashes.
     /// </summary>
     public interface IDeterminismProbe
     {

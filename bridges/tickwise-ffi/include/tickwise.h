@@ -14,8 +14,10 @@
 // Version of the C surface. Increments on every incompatible change.
 //
 // Bridges compare this against the value they were compiled for and
-// refuse to load a library that disagrees.
-#define TICKWISE_ABI_VERSION 1
+// refuse to load a library that disagrees. Version 2 added the dump
+// builder, the replayer, `dump_interval` in the recorder config, and
+// six status codes.
+#define TICKWISE_ABI_VERSION 2
 
 // `hash_algo_id` for a caller-defined hash. Nothing is assumed about it.
 #define TICKWISE_HASH_ALGO_USER_DEFINED 0
@@ -41,20 +43,49 @@ typedef enum TickwiseStatus {
     TICKWISE_STATUS_INVALID_ARGUMENT = 2,
     // A string argument was not valid UTF-8.
     TICKWISE_STATUS_INVALID_UTF8 = 3,
-    // Creating, writing, or finishing the file failed.
+    // Creating, reading, writing, or finishing a file failed, or the
+    // file is not a valid recording.
     TICKWISE_STATUS_IO = 4,
     // Ticks must advance by exactly one between record calls.
     TICKWISE_STATUS_NON_SEQUENTIAL_TICK = 5,
-    // The recorder was already finished. Only destroy is allowed now.
+    // The recorder or replayer was already finished. Only destroy is
+    // allowed now.
     TICKWISE_STATUS_ALREADY_FINISHED = 6,
     // The library panicked internally. This is a Tickwise bug; please
     // report it with the last error message.
     TICKWISE_STATUS_PANIC = 7,
+    // A live hash disagrees with the recorded one: the replay is not
+    // reproducing the recorded session. The message names the tick.
+    TICKWISE_STATUS_HASH_MISMATCH = 8,
+    // The recording declares a different input encoding than the caller
+    // expects, decision #11. Feeding its inputs to the simulation would
+    // silently produce garbage.
+    TICKWISE_STATUS_INPUT_FORMAT_MISMATCH = 9,
+    // A requested tick lies outside the recording.
+    TICKWISE_STATUS_TICK_OUT_OF_RANGE = 10,
+    // The replay protocol was broken: after_tick without a step, or a
+    // second next_step before the previous step was completed.
+    TICKWISE_STATUS_PROTOCOL_MISUSE = 11,
+    // A dump was requested at this tick and none was supplied. The step
+    // stays pending; call after_tick again with the dump.
+    TICKWISE_STATUS_MISSING_DUMP = 12,
+    // The recording holds no ticks at all.
+    TICKWISE_STATUS_EMPTY_RECORDING = 13,
 } TickwiseStatus;
+
+// A state dump under construction. Opaque to C; create with
+// `tickwise_dump_new`, hand to a recorder or replayer, release with
+// `tickwise_dump_destroy`. The recorder and replayer copy what they
+// need, so one dump can be cleared and reused across ticks.
+typedef struct TickwiseDump TickwiseDump;
 
 // An open recording session. Opaque to C; create with
 // `tickwise_recorder_create`, release with `tickwise_recorder_destroy`.
 typedef struct TickwiseRecorder TickwiseRecorder;
+
+// An open replay session. Opaque to C; create with
+// `tickwise_replayer_open`, release with `tickwise_replayer_destroy`.
+typedef struct TickwiseReplayer TickwiseReplayer;
 
 // Recorder configuration as plain C data.
 //
@@ -90,6 +121,11 @@ typedef struct TickwiseRecorderConfig {
     // Caller-declared identifier of the input encoding. Replay refuses
     // a recording whose id differs from the build's.
     uint64_t input_format_id;
+    // State dump interval in ticks. Zero records none. With dumps in
+    // both recordings, `tickwise diff a.rec b.rec` reaches field level
+    // with no replay. Check `tickwise_recorder_wants_dump` each tick and
+    // supply the dump with `tickwise_recorder_record_dump`.
+    uint32_t dump_interval;
 } TickwiseRecorderConfig;
 
 #ifdef __cplusplus
@@ -105,6 +141,130 @@ uint32_t tickwise_ffi_abi_version(void);
 // The pointer refers to static storage. It stays valid for the lifetime
 // of the process and must not be freed.
 const char *tickwise_ffi_version(void);
+
+// Creates an empty dump.
+struct TickwiseDump *tickwise_dump_new(void);
+
+// Releases a dump. Null is a no-op. Using the handle afterwards is
+// undefined behavior.
+//
+// # Safety
+//
+// `dump` must be null or a pointer returned by `tickwise_dump_new` that
+// has not already been destroyed. This is the handle contract every
+// other function in this module refers to.
+void tickwise_dump_destroy(struct TickwiseDump *dump);
+
+// Removes every field, keeping the handle for reuse across ticks.
+//
+// # Safety
+//
+// `dump` obeys the handle contract of `tickwise_dump_destroy`.
+enum TickwiseStatus tickwise_dump_clear(struct TickwiseDump *dump);
+
+// Number of fields in the dump. Zero for a null handle.
+//
+// # Safety
+//
+// `dump` obeys the handle contract of `tickwise_dump_destroy`.
+size_t tickwise_dump_len(const struct TickwiseDump *dump);
+
+// Inserts a null, for an optional value that is absent.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_null(struct TickwiseDump *dump,
+                                           const uint8_t *path,
+                                           size_t path_len);
+
+// Inserts a boolean.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_bool(struct TickwiseDump *dump,
+                                           const uint8_t *path,
+                                           size_t path_len,
+                                           bool value);
+
+// Inserts a signed integer.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_i64(struct TickwiseDump *dump,
+                                          const uint8_t *path,
+                                          size_t path_len,
+                                          int64_t value);
+
+// Inserts an unsigned integer.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_u64(struct TickwiseDump *dump,
+                                          const uint8_t *path,
+                                          size_t path_len,
+                                          uint64_t value);
+
+// Inserts a 32 bit float. The diff classifies float differences by
+// magnitude against a per-width epsilon, so use this for values your
+// simulation holds as single precision.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_f32(struct TickwiseDump *dump,
+                                          const uint8_t *path,
+                                          size_t path_len,
+                                          float value);
+
+// Inserts a 64 bit float.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_f64(struct TickwiseDump *dump,
+                                          const uint8_t *path,
+                                          size_t path_len,
+                                          double value);
+
+// Inserts a UTF-8 string given as pointer and length.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` and `value` are each valid
+// for their lengths.
+enum TickwiseStatus tickwise_dump_set_str(struct TickwiseDump *dump,
+                                          const uint8_t *path,
+                                          size_t path_len,
+                                          const uint8_t *value,
+                                          size_t value_len);
+
+// Inserts raw bytes.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` and `value` are each valid
+// for their lengths.
+enum TickwiseStatus tickwise_dump_set_bytes(struct TickwiseDump *dump,
+                                            const uint8_t *path,
+                                            size_t path_len,
+                                            const uint8_t *value,
+                                            size_t value_len);
+
+// Inserts a collection length. Emit one for every list or map in your
+// state, under the collection's own path, so the diff can tell a
+// shorter list from one whose tail happens to match.
+//
+// # Safety
+//
+// `dump` obeys the handle contract; `path` is valid for `path_len` bytes.
+enum TickwiseStatus tickwise_dump_set_len(struct TickwiseDump *dump,
+                                          const uint8_t *path,
+                                          size_t path_len,
+                                          uint64_t count);
 
 // Returns the message of the last failed call on the current thread as
 // a NUL-terminated UTF-8 string, or an empty string when no call has
@@ -133,8 +293,8 @@ uint64_t tickwise_xxh3_64(const uint8_t *data,
                           size_t len);
 
 // Fills a configuration with the defaults the Rust API uses: empty
-// metadata, a full hash every 300 ticks, no snapshots, hash algorithm 0,
-// input format 0.
+// metadata, a full hash every 300 ticks, no snapshots, no dumps, hash
+// algorithm 0, input format 0.
 //
 // # Safety
 //
@@ -156,11 +316,13 @@ enum TickwiseStatus tickwise_recorder_create(const uint8_t *path,
                                              struct TickwiseRecorder **out);
 
 // Records one tick: the input bytes, the light hash, and the full hash
-// when `tickwise_recorder_wants_full_hash` is true for this tick.
-// On other ticks `full_hash` is ignored and may be zero.
+// when `tickwise_recorder_wants_full_hash` is true for this tick. On
+// other ticks `full_hash` is ignored and may be zero.
 //
 // Call exactly once per tick, in tick order. The first call may use any
-// starting tick, every later call must advance by exactly one.
+// starting tick, every later call must advance by exactly one. Dumps are
+// separate: check `tickwise_recorder_wants_dump` and call
+// `tickwise_recorder_record_dump` after this.
 //
 // # Safety
 //
@@ -184,6 +346,30 @@ enum TickwiseStatus tickwise_recorder_record_tick(struct TickwiseRecorder *rec,
 // `rec` obeys the handle contract of `tickwise_recorder_destroy`.
 bool tickwise_recorder_wants_full_hash(const struct TickwiseRecorder *rec,
                                        uint64_t tick);
+
+// Returns true when the configured dump interval asks for a state dump
+// at this tick. Build one with the `tickwise_dump_*` calls and hand it to
+// `tickwise_recorder_record_dump`.
+//
+// Returns false for a null or finished recorder.
+//
+// # Safety
+//
+// `rec` obeys the handle contract of `tickwise_recorder_destroy`.
+bool tickwise_recorder_wants_dump(const struct TickwiseRecorder *rec,
+                                  uint64_t tick);
+
+// Records a state dump at the given tick, on the interval or on demand.
+// The dump is copied; the caller keeps ownership and may clear and reuse
+// it.
+//
+// # Safety
+//
+// `rec` obeys the handle contract of `tickwise_recorder_destroy`; `dump`
+// obeys the handle contract of `tickwise_dump_destroy`.
+enum TickwiseStatus tickwise_recorder_record_dump(struct TickwiseRecorder *rec,
+                                                  uint64_t tick,
+                                                  const struct TickwiseDump *dump);
 
 // Returns true when the snapshot policy asks for a snapshot at this
 // tick. The recorder cannot serialize state itself, so the caller
@@ -244,6 +430,151 @@ enum TickwiseStatus tickwise_recorder_finish(struct TickwiseRecorder *rec);
 // that has not already been destroyed. This is the handle contract every
 // other function in this module refers to.
 void tickwise_recorder_destroy(struct TickwiseRecorder *rec);
+
+// Opens a recording for replay and stores the handle in `out`.
+//
+// `dump_at_ticks` names the ticks whose state dumps the replay will
+// collect; each must lie inside the recording. When `check_input_format`
+// is true, opening fails unless the recording declares
+// `expected_input_format_id`, decision #11. When `verify_hashes` is true,
+// every `after_tick` compares the live hashes against the recording.
+//
+// # Safety
+//
+// `path` must be valid for `path_len` readable bytes. `dump_at_ticks`
+// must be valid for `dump_count` values, or null with `dump_count == 0`.
+// `out` must be valid for writing one pointer.
+enum TickwiseStatus tickwise_replayer_open(const uint8_t *path,
+                                           size_t path_len,
+                                           const uint64_t *dump_at_ticks,
+                                           size_t dump_count,
+                                           bool verify_hashes,
+                                           bool check_input_format,
+                                           uint64_t expected_input_format_id,
+                                           struct TickwiseReplayer **out);
+
+// Writes the first and last tick the recording covers.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`;
+// `first` and `last` must each be valid for one write.
+enum TickwiseStatus tickwise_replayer_tick_range(struct TickwiseReplayer *rep,
+                                                 uint64_t *first,
+                                                 uint64_t *last);
+
+// Yields the next tick to simulate and its recorded inputs. Returns
+// false, leaving the out parameters untouched, when the recording is
+// exhausted or the handle is invalid.
+//
+// The input pointer refers to memory owned by the replayer and stays
+// valid until the next call to this function or to destroy. Call
+// `tickwise_replayer_after_tick` exactly once after simulating the step.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`; `tick`,
+// `inputs`, and `inputs_len` must each be valid for one write.
+bool tickwise_replayer_next_step(struct TickwiseReplayer *rep,
+                                 uint64_t *tick,
+                                 const uint8_t **inputs,
+                                 size_t *inputs_len);
+
+// Returns true when a dump was requested at this tick, so the caller
+// builds one before `tickwise_replayer_after_tick`. False for an invalid
+// handle.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`.
+bool tickwise_replayer_wants_dump(const struct TickwiseReplayer *rep,
+                                  uint64_t tick);
+
+// Returns true when the recording holds a full hash at this tick and
+// verification is on, so the caller computes the expensive hash only
+// where it will be checked. False for an invalid handle.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`.
+bool tickwise_replayer_wants_full_hash(const struct TickwiseReplayer *rep,
+                                       uint64_t tick);
+
+// Completes the pending step: stores the dump when this tick asked for
+// one, then verifies the hashes against the recording when verification
+// is on.
+//
+// `full_hash` is compared only when `tickwise_replayer_wants_full_hash`
+// was true for the tick. `dump` may be null on ticks where
+// `tickwise_replayer_wants_dump` is false; passing null where a dump was
+// requested returns `MissingDump` and leaves the step pending, so the
+// call can be repeated with the dump. The dump is copied; the caller
+// keeps ownership.
+//
+// A `HashMismatch` means the replay is not reproducing the recording.
+// The step is complete either way and the dump, if any, was kept, so
+// the session can still be finished and its dumps inspected.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`; `dump`
+// is null or obeys the handle contract of `tickwise_dump_destroy`.
+enum TickwiseStatus tickwise_replayer_after_tick(struct TickwiseReplayer *rep,
+                                                 uint64_t light_hash,
+                                                 uint64_t full_hash,
+                                                 const struct TickwiseDump *dump);
+
+// Finds the latest snapshot at or before `tick`. Returns false, leaving
+// the out parameters untouched, when there is none or the handle is
+// invalid.
+//
+// A snapshot at tick T holds the state after tick T completed. Restore
+// your simulation from the bytes, then call `tickwise_replayer_seek_to`
+// with T + 1. The data pointer refers to memory owned by the replayer
+// and stays valid until destroy.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`;
+// `snapshot_tick`, `data`, and `data_len` must each be valid for one
+// write.
+bool tickwise_replayer_nearest_snapshot_before(const struct TickwiseReplayer *rep,
+                                               uint64_t tick,
+                                               uint64_t *snapshot_tick,
+                                               const uint8_t **data,
+                                               size_t *data_len);
+
+// Positions the replay so the next step is `tick`, after restoring state
+// from a snapshot.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`.
+enum TickwiseStatus tickwise_replayer_seek_to(struct TickwiseReplayer *rep,
+                                              uint64_t tick);
+
+// Writes the collected dumps as a `.dump` file at `path` and ends the
+// session. The handle stays allocated but accepts nothing except
+// destroy afterwards. Fails with `ProtocolMisuse` when a step was left
+// without its `after_tick`.
+//
+// # Safety
+//
+// `rep` obeys the handle contract of `tickwise_replayer_destroy`; `path`
+// must be valid for `path_len` readable bytes.
+enum TickwiseStatus tickwise_replayer_finish(struct TickwiseReplayer *rep,
+                                             const uint8_t *path,
+                                             size_t path_len);
+
+// Releases a replayer handle. Null is a no-op. Using the handle after
+// this call is undefined behavior.
+//
+// # Safety
+//
+// `rep` must be null or a pointer returned by `tickwise_replayer_open`
+// that has not already been destroyed. This is the handle contract every
+// other function in this module refers to.
+void tickwise_replayer_destroy(struct TickwiseReplayer *rep);
 
 #ifdef __cplusplus
 }  // extern "C"

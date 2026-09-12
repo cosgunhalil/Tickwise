@@ -36,6 +36,10 @@ namespace cocos2dx {
  * Two recordings of the same match then go to the command line tool:
  *
  *   tickwise compare clean.rec chaotic.rec
+ *
+ * With config.dump_interval set and a probe that overrides state_dump,
+ * the recordings also carry state dumps, and `tickwise diff clean.rec
+ * chaotic.rec` names the fields that differ with no replay.
  */
 class TickwiseRecorder : public cocos2d::Node {
 public:
@@ -44,8 +48,8 @@ public:
 
     /**
      * Session settings, set before startRecording. Defaults match the Rust
-     * API: a full hash every 300 ticks and no snapshots. The hash algorithm
-     * is forced to xxh3, which is what the Hasher produces.
+     * API: a full hash every 300 ticks, no snapshots, no dumps. The hash
+     * algorithm is forced to xxh3, which is what the Hasher produces.
      */
     tickwise::Config config;
 
@@ -66,13 +70,20 @@ public:
     void setInputs(const std::vector<uint8_t>& inputs);
 
     /**
-     * Records one tick with the current inputs and the probe's hashes.
+     * Records one tick with the current inputs and the probe's hashes, and
+     * the probe's state dump on the ticks config.dump_interval names.
      * Call it once per simulation tick, in order, after the step has run.
      */
     bool recordTick();
 
     /** Records a named point in the recording, for example a round start. */
     void recordMarker(const std::string& label);
+
+    /**
+     * Records the probe's state dump at the last recorded tick, on demand,
+     * for example next to a round start marker. Returns false on failure.
+     */
+    bool recordDump();
 
     bool isRecording() const;
 
@@ -98,6 +109,7 @@ private:
     tickwise::Recorder recorder_;
     const tickwise::Probe* probe_ = nullptr;
     std::vector<uint8_t> inputs_;
+    tickwise::Dump dump_;
     uint64_t nextTick_ = 0;
     std::string lastError_;
     std::string recordingPath_;

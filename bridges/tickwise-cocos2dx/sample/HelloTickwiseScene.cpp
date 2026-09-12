@@ -45,6 +45,10 @@ bool HelloTickwiseScene::init() {
     recorder_->config.tick_rate = kTicksPerSecond;
     recorder_->config.rng_seed = rng_;
     recorder_->config.full_hash_interval = 50;
+    // A dump every 100 ticks, so `tickwise diff clean.rec chaotic.rec`
+    // names the field that moved with no replay. Costs one state_dump
+    // walk per 100 ticks.
+    recorder_->config.dump_interval = 100;
     recorder_->config.input_format_id = 1;
     recorder_->setProbe(this);
     addChild(recorder_);
@@ -71,7 +75,8 @@ void HelloTickwiseScene::update(float delta) {
     if (tick_ >= kTicks && recorder_->isRecording()) {
         recorder_->stopRecording();
         label_->setString(StringUtils::format(
-            "recorded %d ticks, score %llu\nsaved %s\nrun again with the other flag, then:\n  tickwise compare clean.rec chaotic.rec",
+            "recorded %d ticks, score %llu\nsaved %s\nrun again with the other flag, then:\n"
+            "  tickwise compare clean.rec chaotic.rec\n  tickwise diff clean.rec chaotic.rec",
             kTicks, static_cast<unsigned long long>(score_), recorder_->getRecordingPath().c_str()));
         return;
     }
@@ -133,4 +138,14 @@ uint64_t HelloTickwiseScene::full_hash() const {
         hasher_.i32(x_[i]).i32(y_[i]).i32(vx_[i]).i32(vy_[i]);
     }
     return hasher_.finish();
+}
+
+void HelloTickwiseScene::state_dump(tickwise::Dump& dump) const {
+    // The same fields the full hash covers, by name. With the planted bug
+    // the diff points at balls[0].x, which is exactly where it lives.
+    dump.u64("score", score_).u64("rng", rng_).u64("tick", tick_).len("balls", kBalls);
+    for (int i = 0; i < kBalls; ++i) {
+        std::string ball = "balls[" + std::to_string(i) + "]";
+        dump.i64(ball + ".x", x_[i]).i64(ball + ".y", y_[i]).i64(ball + ".vx", vx_[i]).i64(ball + ".vy", vy_[i]);
+    }
 }

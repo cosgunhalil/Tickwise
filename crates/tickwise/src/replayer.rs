@@ -61,6 +61,12 @@ pub enum ReplayError {
         /// The tick whose `after_tick` never happened.
         tick: u64,
     },
+    /// A dump was requested at this tick and `after_tick_hashes` was
+    /// called without one. Check `wants_dump` before each step.
+    MissingDump {
+        /// The tick whose dump was owed.
+        tick: u64,
+    },
 }
 
 impl std::fmt::Display for ReplayError {
@@ -100,6 +106,11 @@ impl std::fmt::Display for ReplayError {
                 f,
                 "next_step was called again before after_tick for tick {tick}, \
                  every step needs exactly one after_tick"
+            ),
+            Self::MissingDump { tick } => write!(
+                f,
+                "a dump was requested at tick {tick} but none was supplied, \
+                 check wants_dump before each step and pass the dump to after_tick_hashes"
             ),
         }
     }
@@ -385,45 +396,98 @@ impl Replayer {
         Some(Step { tick, inputs })
     }
 
+    /// Returns true when a dump was requested at this tick, so a caller
+    /// driving the push form knows to build one before `after_tick_hashes`.
+    pub fn wants_dump(&self, tick: u64) -> bool {
+        self.dump_ticks.contains(&tick)
+    }
+
+    /// Returns true when the recording holds a full hash at this tick and
+    /// verification is on, so a caller driving the push form computes the
+    /// expensive hash only where it will be checked.
+    pub fn wants_full_hash(&self, tick: u64) -> bool {
+        self.verify_hashes && self.full.contains_key(&tick)
+    }
+
     /// Captures a dump if this tick was requested, then verifies the live
     /// hashes against the recording when verification is enabled.
     pub fn after_tick(&mut self, probe: &dyn DeterminismProbe) -> Result<(), ReplayError> {
-        let tick = self.pending.take().ok_or(ReplayError::NoPendingStep)?;
+        let tick = self.pending.ok_or(ReplayError::NoPendingStep)?;
+        // Ask the probe only for what this tick needs.
+        let dump = self.wants_dump(tick).then(|| probe.state_dump());
+        let light = if self.verify_hashes {
+            probe.light_hash()
+        } else {
+            0
+        };
+        let full = if self.wants_full_hash(tick) {
+            probe.full_hash()
+        } else {
+            0
+        };
+        self.after_tick_hashes(light, full, dump)
+    }
+
+    /// Completes the pending step from hashes the caller computed, the
+    /// push form of [`after_tick`](Replayer::after_tick).
+    ///
+    /// Engine bridges use this: nothing calls back across the boundary.
+    /// `full_hash` is compared only on ticks where
+    /// [`wants_full_hash`](Replayer::wants_full_hash) is true and ignored
+    /// otherwise. A dump is required exactly on the ticks where
+    /// [`wants_dump`](Replayer::wants_dump) is true; leaving it out there
+    /// is an error and the step stays pending, so the call can be
+    /// repeated with the dump.
+    pub fn after_tick_hashes(
+        &mut self,
+        light_hash: u64,
+        full_hash: u64,
+        dump: Option<StateDump>,
+    ) -> Result<(), ReplayError> {
+        let tick = self.pending.ok_or(ReplayError::NoPendingStep)?;
+        if self.dump_ticks.contains(&tick) && dump.is_none() {
+            return Err(ReplayError::MissingDump { tick });
+        }
+        self.pending = None;
 
         // Dump before verifying, so a divergence at the target tick still
         // leaves the dump behind for inspection.
-        if self.dump_ticks.contains(&tick) {
-            self.dumps.push((tick, probe.state_dump()));
+        if let Some(dump) = dump
+            && self.dump_ticks.contains(&tick)
+        {
+            self.dumps.push((tick, dump));
         }
 
         if self.verify_hashes {
-            if let Some(recorded) = self.light.get(&tick) {
-                let actual = probe.light_hash();
-                if actual != *recorded {
-                    return Err(ReplayError::HashMismatch {
-                        tick,
-                        kind: HashKind::Light,
-                        recorded: *recorded,
-                        actual,
-                    });
-                }
+            if let Some(recorded) = self.light.get(&tick)
+                && light_hash != *recorded
+            {
+                return Err(ReplayError::HashMismatch {
+                    tick,
+                    kind: HashKind::Light,
+                    recorded: *recorded,
+                    actual: light_hash,
+                });
             }
-            if let Some(recorded) = self.full.get(&tick) {
-                let actual = probe.full_hash();
-                if actual != *recorded {
-                    return Err(ReplayError::HashMismatch {
-                        tick,
-                        kind: HashKind::Full,
-                        recorded: *recorded,
-                        actual,
-                    });
-                }
+            if let Some(recorded) = self.full.get(&tick)
+                && full_hash != *recorded
+            {
+                return Err(ReplayError::HashMismatch {
+                    tick,
+                    kind: HashKind::Full,
+                    recorded: *recorded,
+                    actual: full_hash,
+                });
             }
         }
         Ok(())
     }
 
-    fn check_protocol(&self) -> Result<(), ReplayError> {
+    /// Fails with [`ReplayError::StepSkipped`] when a step was left without
+    /// its `after_tick`. [`Self::finish`] and [`Self::into_dumps`] run this
+    /// check first; a caller that must keep the session alive on a
+    /// protocol slip, such as an FFI layer, can run it ahead of them.
+    pub fn check_protocol(&self) -> Result<(), ReplayError> {
         if let Some(tick) = self.skipped.or(self.pending) {
             return Err(ReplayError::StepSkipped { tick });
         }

@@ -7,7 +7,7 @@ namespace Tickwise.Tests
     /// recording made from C# and one made from C carry comparable hashes.
     /// Integer math and a private LCG keep it deterministic everywhere.
     /// </summary>
-    internal sealed class IntegerSim : IDeterminismProbe
+    internal sealed class IntegerSim : IDeterminismProbe, ITickwiseStateWriter
     {
         private readonly ulong[] _pos = new ulong[4];
         private readonly byte[] _full = new byte[44];
@@ -19,6 +19,8 @@ namespace Tickwise.Tests
         {
             _rng = seed;
         }
+
+        public ulong Score => _score;
 
         public void Step(ReadOnlySpan<byte> inputs, bool injectDefect)
         {
@@ -56,11 +58,34 @@ namespace Tickwise.Tests
             return Xxh3.Hash64(_full);
         }
 
+        /// <summary>Every field the full hash covers, by name, with the collection's length.</summary>
+        public void WriteState(TickwiseDump dump)
+        {
+            dump.SetUInt64("score", _score);
+            dump.SetUInt64("rng", _rng);
+            dump.SetLength("pos", 4);
+            for (int i = 0; i < 4; i++)
+            {
+                dump.SetUInt64("pos[" + i + "]", _pos[i]);
+            }
+        }
+
         /// <summary>Serializes the state in the same 44-byte layout the full hash uses.</summary>
         public byte[] Snapshot()
         {
             FullHash();
             return (byte[])_full.Clone();
+        }
+
+        /// <summary>Restores from a <see cref="Snapshot"/>, the caller's half of a snapshot seek.</summary>
+        public void Restore(ReadOnlySpan<byte> snapshot)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                _pos[i] = BitConverter.ToUInt64(snapshot.Slice(i * 8, 8));
+            }
+            _score = BitConverter.ToUInt64(snapshot.Slice(32, 8));
+            _rng = BitConverter.ToUInt32(snapshot.Slice(40, 4));
         }
     }
 }

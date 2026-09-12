@@ -142,6 +142,15 @@ jobs:
           set -e
           test "$code" -eq 1 || { echo "::error::compare exited with $code, expected 1"; exit 1; }
           grep -q "421" compare.log
+          # Both recordings carry dumps every 100 ticks: field level with no replay.
+          set +e
+          cargo run -q -p tickwise-cli -- diff "$CTEST/clean.rec" "$CTEST/chaotic.rec" --at 500 | tee diff.log
+          code=${PIPESTATUS[0]}
+          set -e
+          test "$code" -eq 1 || { echo "::error::diff exited with $code, expected 1"; exit 1; }
+          grep -q "score" diff.log
+          # The .dump the C replay wrote agrees with the recording at the shared tick.
+          cargo run -q -p tickwise-cli -- diff "$CTEST/clean.dump" "$CTEST/clean.rec"
 
       - name: Build the shared and static libraries
         run: cargo build --release
@@ -225,6 +234,13 @@ jobs:
           set -e
           test "$code" -eq 1 || { echo "::error::compare exited with $code, expected 1"; exit 1; }
           grep -q "tick 421" compare.log
+          set +e
+          cargo run -q -p tickwise-cli -- diff "$REC/clean.rec" "$REC/chaotic.rec" --at 500 | tee diff.log
+          code=${PIPESTATUS[0]}
+          set -e
+          test "$code" -eq 1 || { echo "::error::diff exited with $code, expected 1"; exit 1; }
+          grep -q "score" diff.log
+          cargo run -q -p tickwise-cli -- diff "$REC/clean.dump" "$REC/clean.rec"
 
   cocos2dx:
     name: tickwise-cocos2dx on ${{ matrix.os }}
@@ -271,6 +287,13 @@ jobs:
           set -e
           test "$code" -eq 1 || { echo "::error::compare exited with $code, expected 1"; exit 1; }
           grep -q "tick 421" compare.log
+          # The node dumped on demand at the planted tick, so the diff lands on it.
+          set +e
+          cargo run -q -p tickwise-cli -- diff "$REC/clean.rec" "$REC/chaotic.rec" --at 421 | tee diff.log
+          code=${PIPESTATUS[0]}
+          set -e
+          test "$code" -eq 1 || { echo "::error::diff exited with $code, expected 1"; exit 1; }
+          grep -q "score" diff.log
 
   unreal-plugin:
     name: unreal plugin layout

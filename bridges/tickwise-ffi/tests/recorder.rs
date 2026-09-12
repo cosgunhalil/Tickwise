@@ -41,6 +41,7 @@ fn config_with_meta() -> TickwiseRecorderConfig {
         snapshot_every: 0,
         hash_algo_id: 0,
         input_format_id: 0,
+        dump_interval: 0,
     };
     // SAFETY: a valid, writable config struct.
     assert_eq!(

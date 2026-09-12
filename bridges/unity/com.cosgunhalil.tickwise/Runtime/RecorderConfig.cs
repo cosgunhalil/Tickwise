@@ -46,6 +46,15 @@ namespace Tickwise
         /// </summary>
         public ulong InputFormatId { get; set; }
 
+        /// <summary>
+        /// State dump interval in ticks. Zero, the default, records none.
+        /// With a dump every N ticks in both recordings, <c>tickwise diff
+        /// a.rec b.rec</c> reaches field level with no replay, at the cost of
+        /// a full walk of your state every N ticks inside the game loop. The
+        /// probe must implement <see cref="ITickwiseStateWriter"/>.
+        /// </summary>
+        public uint DumpInterval { get; set; }
+
         /// <summary>Sets <see cref="CreatedAt"/> to the current time.</summary>
         public RecorderConfig StampCreatedAt()
         {

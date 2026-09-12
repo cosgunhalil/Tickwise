@@ -1,13 +1,14 @@
 // Tickwise for C++: a thin, header-only wrapper over the tickwise-ffi C
-// ABI, shared by the Unreal plugin and the cocos2d-x bridge.
+// ABI, shared by the Unreal plugin and the cocos2d-x bridge. Both passes
+// of the workflow: recording with dumps, and replay.
 //
 // Design rules, because engine code is where they matter most:
 //   - No exceptions. Unreal builds without them, so every failure comes
 //     back as a Status, with the message available from last_error().
 //   - No engine types. Only the standard library, C++14.
 //   - No hidden allocation on the tick path. record_tick borrows the
-//     caller's bytes; the only allocation is the Hasher's buffer, which
-//     the caller owns and reuses.
+//     caller's bytes; the Hasher and Dump buffers are owned by the caller
+//     and reused.
 //
 // Licensed under MIT OR Apache-2.0, at your option.
 
@@ -34,6 +35,12 @@ enum class Status : int {
     NonSequentialTick = TICKWISE_STATUS_NON_SEQUENTIAL_TICK,
     AlreadyFinished = TICKWISE_STATUS_ALREADY_FINISHED,
     Panic = TICKWISE_STATUS_PANIC,
+    HashMismatch = TICKWISE_STATUS_HASH_MISMATCH,
+    InputFormatMismatch = TICKWISE_STATUS_INPUT_FORMAT_MISMATCH,
+    TickOutOfRange = TICKWISE_STATUS_TICK_OUT_OF_RANGE,
+    ProtocolMisuse = TICKWISE_STATUS_PROTOCOL_MISUSE,
+    MissingDump = TICKWISE_STATUS_MISSING_DUMP,
+    EmptyRecording = TICKWISE_STATUS_EMPTY_RECORDING,
 };
 
 /// A short static name for a status, for log lines.
@@ -76,7 +83,7 @@ const uint16_t kBlake3 = TICKWISE_HASH_ALGO_BLAKE3;
 } // namespace hash_algo
 
 /// Recording configuration. Defaults match the Rust API: a full hash
-/// every 300 ticks, no snapshots, a caller-defined hash.
+/// every 300 ticks, no snapshots, no dumps, a caller-defined hash.
 struct Config {
     std::string game_id;
     std::string build_hash;
@@ -88,17 +95,105 @@ struct Config {
     uint32_t snapshot_every = 0;
     uint16_t hash_algo_id = hash_algo::kUserDefined;
     uint64_t input_format_id = 0;
+    /// State dump interval in ticks. Zero records none. With dumps in
+    /// both recordings, `tickwise diff a.rec b.rec` reaches field level
+    /// with no replay, at the cost of a full walk of your state every N
+    /// ticks inside the game loop.
+    uint32_t dump_interval = 0;
+};
+
+/// A state dump under construction: a flat list of path and value pairs
+/// the diff walks. Paths are dotted with brackets for indices, the same
+/// shape every probe in the repository produces. Emit a length for every
+/// collection under its own path, so a shorter list never hides behind a
+/// matching tail. Reuse one instance; clear() keeps the handle.
+class Dump {
+public:
+    Dump() : handle_(tickwise_dump_new()) {}
+    ~Dump() { tickwise_dump_destroy(handle_); }
+
+    Dump(Dump&& other) noexcept : handle_(other.handle_) { other.handle_ = nullptr; }
+    Dump& operator=(Dump&& other) noexcept {
+        if (this != &other) {
+            tickwise_dump_destroy(handle_);
+            handle_ = other.handle_;
+            other.handle_ = nullptr;
+        }
+        return *this;
+    }
+    Dump(const Dump&) = delete;
+    Dump& operator=(const Dump&) = delete;
+
+    Dump& clear() {
+        tickwise_dump_clear(handle_);
+        return *this;
+    }
+    size_t size() const { return tickwise_dump_len(handle_); }
+
+    Dump& null(const std::string& path) {
+        tickwise_dump_set_null(handle_, bytes_of(path), path.size());
+        return *this;
+    }
+    Dump& boolean(const std::string& path, bool v) {
+        tickwise_dump_set_bool(handle_, bytes_of(path), path.size(), v);
+        return *this;
+    }
+    Dump& i64(const std::string& path, int64_t v) {
+        tickwise_dump_set_i64(handle_, bytes_of(path), path.size(), v);
+        return *this;
+    }
+    Dump& u64(const std::string& path, uint64_t v) {
+        tickwise_dump_set_u64(handle_, bytes_of(path), path.size(), v);
+        return *this;
+    }
+    Dump& f32(const std::string& path, float v) {
+        tickwise_dump_set_f32(handle_, bytes_of(path), path.size(), v);
+        return *this;
+    }
+    Dump& f64(const std::string& path, double v) {
+        tickwise_dump_set_f64(handle_, bytes_of(path), path.size(), v);
+        return *this;
+    }
+    Dump& str(const std::string& path, const std::string& v) {
+        tickwise_dump_set_str(handle_, bytes_of(path), path.size(), bytes_of(v), v.size());
+        return *this;
+    }
+    Dump& bytes(const std::string& path, const void* data, size_t len) {
+        tickwise_dump_set_bytes(handle_, bytes_of(path), path.size(),
+                                static_cast<const uint8_t*>(data), len);
+        return *this;
+    }
+    /// A collection's length, under the collection's own path.
+    Dump& len(const std::string& path, uint64_t count) {
+        tickwise_dump_set_len(handle_, bytes_of(path), path.size(), count);
+        return *this;
+    }
+
+    /// The handle, for the C calls that take one.
+    const TickwiseDump* raw() const { return handle_; }
+    TickwiseDump* raw() { return handle_; }
+
+private:
+    static const uint8_t* bytes_of(const std::string& s) {
+        return s.empty() ? nullptr : reinterpret_cast<const uint8_t*>(s.data());
+    }
+
+    TickwiseDump* handle_;
 };
 
 /// The contract between a simulation and Tickwise: two hashes of
-/// gameplay state. light_hash runs every tick and must stay well under
-/// one percent of the tick; full_hash runs on the ticks the recorder
-/// keeps, every 300 by default, and covers everything.
+/// gameplay state, and a dump of it. light_hash runs every tick and must
+/// stay well under one percent of the tick; full_hash runs on the ticks
+/// the recorder keeps, every 300 by default, and covers everything.
+/// state_dump runs only on dump ticks, in Pass 1 when a dump interval is
+/// set and in Pass 2 at the ticks a replay asks for. It defaults to
+/// writing nothing, which leaves Pass 2 without field names; fill it.
 class Probe {
 public:
     virtual ~Probe() {}
     virtual uint64_t light_hash() const = 0;
     virtual uint64_t full_hash() const = 0;
+    virtual void state_dump(Dump& /*dump*/) const {}
 };
 
 /// Builds a byte buffer field by field and hashes it with xxh3, so a
@@ -169,10 +264,43 @@ private:
     std::vector<uint8_t> bytes_;
 };
 
+/// Shared state and status bookkeeping for the two session types.
+class Session {
+public:
+    /// The status of the last call, and its message when it failed.
+    Status last_status() const { return last_status_; }
+    const std::string& last_error() const { return last_error_; }
+
+protected:
+    static const uint8_t* bytes_of(const std::string& s) {
+        return s.empty() ? nullptr : reinterpret_cast<const uint8_t*>(s.data());
+    }
+
+    Status wrap(enum TickwiseStatus raw) {
+        Status status = static_cast<Status>(raw);
+        last_status_ = status;
+        if (status == Status::Ok) {
+            last_error_.clear();
+        } else {
+            last_error_ = last_error_message();
+        }
+        return status;
+    }
+
+    Status fail(Status status, const char* message) {
+        last_status_ = status;
+        last_error_ = message;
+        return status;
+    }
+
+    Status last_status_ = Status::Ok;
+    std::string last_error_;
+};
+
 /// One recording session. Move-only; the destructor finishes an open
 /// recording, so a session that just goes out of scope still leaves a
 /// readable file.
-class Recorder {
+class Recorder : public Session {
 public:
     Recorder() {}
     ~Recorder() { destroy(); }
@@ -185,7 +313,6 @@ public:
         }
         return *this;
     }
-
     Recorder(const Recorder&) = delete;
     Recorder& operator=(const Recorder&) = delete;
 
@@ -214,6 +341,7 @@ public:
         native.snapshot_every = config.snapshot_every;
         native.hash_algo_id = config.hash_algo_id;
         native.input_format_id = config.input_format_id;
+        native.dump_interval = config.dump_interval;
 
         TickwiseRecorder* handle = nullptr;
         status = wrap(tickwise_recorder_create(bytes_of(path), path.size(), &native, &handle));
@@ -224,19 +352,27 @@ public:
         return status;
     }
 
-    /// Records one tick, asking the probe for the full hash only when
-    /// the recorder will keep it.
+    /// Records one tick, asking the probe only for what the recorder
+    /// keeps: the full hash on its interval and, when a dump interval is
+    /// set, the state dump on its own.
     Status record_tick(uint64_t tick, const uint8_t* inputs, size_t inputs_len, const Probe& probe) {
         if (!handle_) {
             return fail(Status::NullPointer, "recorder is not open");
         }
         uint64_t light = probe.light_hash();
         uint64_t full = wants_full_hash(tick) ? probe.full_hash() : 0;
-        return record_tick(tick, inputs, inputs_len, light, full);
+        Status status = record_tick(tick, inputs, inputs_len, light, full);
+        if (status != Status::Ok || !wants_dump(tick)) {
+            return status;
+        }
+        scratch_.clear();
+        probe.state_dump(scratch_);
+        return record_dump(tick, scratch_);
     }
 
     /// Records one tick with hashes computed elsewhere. The full hash
-    /// is ignored on ticks where wants_full_hash() is false.
+    /// is ignored on ticks where wants_full_hash() is false. Dumps are
+    /// not scheduled through this call.
     Status record_tick(uint64_t tick, const uint8_t* inputs, size_t inputs_len, uint64_t light_hash,
                        uint64_t full_hash) {
         if (!handle_) {
@@ -251,6 +387,19 @@ public:
 
     bool wants_snapshot(uint64_t tick) const {
         return handle_ && tickwise_recorder_wants_snapshot(handle_, tick);
+    }
+
+    bool wants_dump(uint64_t tick) const {
+        return handle_ && tickwise_recorder_wants_dump(handle_, tick);
+    }
+
+    /// Records a dump built by the caller, on the interval or on demand,
+    /// for example next to a round start marker. The dump is copied.
+    Status record_dump(uint64_t tick, const Dump& dump) {
+        if (!handle_) {
+            return fail(Status::NullPointer, "recorder is not open");
+        }
+        return wrap(tickwise_recorder_record_dump(handle_, tick, dump.raw()));
     }
 
     Status record_snapshot(uint64_t tick, const uint8_t* data, size_t len) {
@@ -295,32 +444,7 @@ public:
     /// True between a successful open and finish.
     bool is_recording() const { return handle_ && !finished_; }
 
-    /// The status of the last call, and its message when it failed.
-    Status last_status() const { return last_status_; }
-    const std::string& last_error() const { return last_error_; }
-
 private:
-    static const uint8_t* bytes_of(const std::string& s) {
-        return s.empty() ? nullptr : reinterpret_cast<const uint8_t*>(s.data());
-    }
-
-    Status wrap(enum TickwiseStatus raw) {
-        Status status = static_cast<Status>(raw);
-        last_status_ = status;
-        if (status == Status::Ok) {
-            last_error_.clear();
-        } else {
-            last_error_ = last_error_message();
-        }
-        return status;
-    }
-
-    Status fail(Status status, const char* message) {
-        last_status_ = status;
-        last_error_ = message;
-        return status;
-    }
-
     void steal(Recorder& other) {
         handle_ = other.handle_;
         finished_ = other.finished_;
@@ -332,8 +456,166 @@ private:
 
     TickwiseRecorder* handle_ = nullptr;
     bool finished_ = false;
-    Status last_status_ = Status::Ok;
-    std::string last_error_;
+    Dump scratch_;
+};
+
+/// Options for a replay session.
+struct ReplayOptions {
+    /// Ticks whose state dumps the replay collects. Each must lie inside
+    /// the recording.
+    std::vector<uint64_t> dump_at_ticks;
+    /// Compare live hashes against the recording after every step.
+    bool verify_hashes = true;
+    /// Refuse a recording whose input format id differs from
+    /// expected_input_format_id, decision #11.
+    bool check_input_format = false;
+    uint64_t expected_input_format_id = 0;
+};
+
+/// One tick's worth of replay: the tick to simulate and its recorded
+/// inputs. The input pointer stays valid until the next step.
+struct Step {
+    uint64_t tick = 0;
+    const uint8_t* inputs = nullptr;
+    size_t inputs_len = 0;
+};
+
+/// One replay session, Pass 2. Move-only. Hand each step's inputs to your
+/// simulation, advance it, then call after_tick; the replayer verifies
+/// the live hashes against the recording and collects dumps at the ticks
+/// you named. finish() writes them as a .dump for `tickwise diff`.
+class Replayer : public Session {
+public:
+    Replayer() {}
+    ~Replayer() { destroy(); }
+
+    Replayer(Replayer&& other) noexcept { steal(other); }
+    Replayer& operator=(Replayer&& other) noexcept {
+        if (this != &other) {
+            destroy();
+            steal(other);
+        }
+        return *this;
+    }
+    Replayer(const Replayer&) = delete;
+    Replayer& operator=(const Replayer&) = delete;
+
+    Status open(const std::string& path, const ReplayOptions& options) {
+        destroy();
+        if (!abi_matches()) {
+            return fail(Status::InvalidArgument, "tickwise_ffi ABI version mismatch");
+        }
+        TickwiseReplayer* handle = nullptr;
+        const uint64_t* dumps = options.dump_at_ticks.empty() ? nullptr : options.dump_at_ticks.data();
+        Status status = wrap(tickwise_replayer_open(
+            bytes_of(path), path.size(), dumps, options.dump_at_ticks.size(), options.verify_hashes,
+            options.check_input_format, options.expected_input_format_id, &handle));
+        if (status == Status::Ok) {
+            handle_ = handle;
+            finished_ = false;
+        }
+        return status;
+    }
+
+    /// The first and last tick the recording covers.
+    Status tick_range(uint64_t& first, uint64_t& last) {
+        if (!handle_) {
+            return fail(Status::NullPointer, "replayer is not open");
+        }
+        return wrap(tickwise_replayer_tick_range(handle_, &first, &last));
+    }
+
+    /// Yields the next step, or returns false when the recording is
+    /// exhausted. Call after_tick exactly once per step.
+    bool next_step(Step& step) {
+        return handle_ && tickwise_replayer_next_step(handle_, &step.tick, &step.inputs, &step.inputs_len);
+    }
+
+    bool wants_dump(uint64_t tick) const { return handle_ && tickwise_replayer_wants_dump(handle_, tick); }
+    bool wants_full_hash(uint64_t tick) const {
+        return handle_ && tickwise_replayer_wants_full_hash(handle_, tick);
+    }
+
+    /// Completes the step from the probe, asking it only for what this
+    /// tick needs. A HashMismatch means the replay is not reproducing the
+    /// recording; the dump, if any, was still kept.
+    Status after_tick(uint64_t tick, const Probe& probe) {
+        if (!handle_) {
+            return fail(Status::NullPointer, "replayer is not open");
+        }
+        uint64_t light = probe.light_hash();
+        uint64_t full = wants_full_hash(tick) ? probe.full_hash() : 0;
+        const Dump* dump = nullptr;
+        if (wants_dump(tick)) {
+            scratch_.clear();
+            probe.state_dump(scratch_);
+            dump = &scratch_;
+        }
+        return after_tick(light, full, dump);
+    }
+
+    /// Completes the step with hashes computed elsewhere. `dump` may be
+    /// null except on ticks where wants_dump() is true; there, a missing
+    /// dump leaves the step pending so the call can be repeated.
+    Status after_tick(uint64_t light_hash, uint64_t full_hash, const Dump* dump) {
+        if (!handle_) {
+            return fail(Status::NullPointer, "replayer is not open");
+        }
+        return wrap(tickwise_replayer_after_tick(handle_, light_hash, full_hash, dump ? dump->raw() : nullptr));
+    }
+
+    /// The latest snapshot at or before `tick`, for restoring state and
+    /// seeking forward. The data pointer stays valid until destroy.
+    bool nearest_snapshot_before(uint64_t tick, uint64_t& snapshot_tick, const uint8_t*& data,
+                                 size_t& len) const {
+        return handle_ &&
+               tickwise_replayer_nearest_snapshot_before(handle_, tick, &snapshot_tick, &data, &len);
+    }
+
+    /// Positions the replay so the next step is `tick`, after restoring
+    /// state from a snapshot taken at `tick - 1`.
+    Status seek_to(uint64_t tick) {
+        if (!handle_) {
+            return fail(Status::NullPointer, "replayer is not open");
+        }
+        return wrap(tickwise_replayer_seek_to(handle_, tick));
+    }
+
+    /// Writes the collected dumps as a .dump file and ends the session.
+    Status finish(const std::string& path) {
+        if (!handle_) {
+            return fail(Status::NullPointer, "replayer is not open");
+        }
+        Status status = wrap(tickwise_replayer_finish(handle_, bytes_of(path), path.size()));
+        if (status == Status::Ok) {
+            finished_ = true;
+        }
+        return status;
+    }
+
+    void destroy() {
+        if (handle_) {
+            tickwise_replayer_destroy(handle_);
+            handle_ = nullptr;
+        }
+        finished_ = false;
+    }
+
+    bool is_open() const { return handle_ && !finished_; }
+
+private:
+    void steal(Replayer& other) {
+        handle_ = other.handle_;
+        finished_ = other.finished_;
+        last_status_ = other.last_status_;
+        last_error_ = other.last_error_;
+        other.handle_ = nullptr;
+        other.finished_ = false;
+    }
+
+    TickwiseReplayer* handle_ = nullptr;
+    bool finished_ = false;
+    Dump scratch_;
 };
 
 } // namespace tickwise

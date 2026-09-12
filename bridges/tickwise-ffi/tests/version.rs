@@ -7,7 +7,7 @@ use tickwise_ffi::{TICKWISE_ABI_VERSION, tickwise_ffi_abi_version, tickwise_ffi_
 #[test]
 fn abi_version_matches_the_constant() {
     assert_eq!(tickwise_ffi_abi_version(), TICKWISE_ABI_VERSION);
-    assert_eq!(TICKWISE_ABI_VERSION, 1);
+    assert_eq!(TICKWISE_ABI_VERSION, 2);
 }
 
 #[test]

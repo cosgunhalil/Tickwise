@@ -25,6 +25,7 @@ public:
 
     uint64_t light_hash() const override;
     uint64_t full_hash() const override;
+    void state_dump(tickwise::Dump& dump) const override;
 
 private:
     static const int kBalls = 8;

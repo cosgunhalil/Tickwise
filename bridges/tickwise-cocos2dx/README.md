@@ -6,7 +6,7 @@ Record and compare deterministic simulations to find desyncs, from inside a clas
 
 ## Status
 
-Under construction, milestone M10 of the Tickwise v2 roadmap. This first version covers Pass 1 of the workflow, recording and compare. The adapter is verified end to end in continuous integration against a declared shim of the engine calls it uses, not against a cocos2d-x build; see Testing for what that does and does not prove.
+Under construction, milestone M10 of the Tickwise v2 roadmap. The node records, and with `dump_interval` set it dumps state on an interval so `tickwise diff` reaches field level with no replay; Pass 2 replay is a plain C++ loop over `tickwise::Replayer` from the shared header. The adapter is verified end to end in continuous integration against a declared shim of the engine calls it uses, not against a cocos2d-x build; see Testing for what that does and does not prove.
 
 ## The shape of it
 
@@ -35,6 +35,7 @@ class MatchScene : public cocos2d::Scene, public tickwise::Probe {
 
     uint64_t light_hash() const override { return hasher_.reset().u64(score_).u32(rng_).finish(); }
     uint64_t full_hash() const override { /* every field */ }
+    void state_dump(tickwise::Dump& dump) const override { /* every field, by name */ }
 };
 ```
 
@@ -49,6 +50,8 @@ tickwise compare clean.rec chaotic.rec
   verdict        first divergence at tick 421, caught by the light hash,
                  confirmed by the full hash at tick 450, last agreement at tick 420
 ```
+
+Set `recorder_->config.dump_interval = 100` and override `state_dump`, and the recordings also carry state dumps, so `tickwise diff clean.rec chaotic.rec --at 500` names the field that moved with no replay. `recordDump()` adds one on demand at the last recorded tick, for example next to a round start marker. Each dump walks all of gameplay state, which is why the interval is opt-in. `sample/HelloTickwiseScene.cpp` does both, and its diff points at `balls[0].x`, where the planted bug lives.
 
 ## Why the node does not record on its own
 
@@ -76,7 +79,7 @@ cmake --build tickwise-cocos2dx/build --config Release
 ctest --test-dir tickwise-cocos2dx/build -C Release --output-on-failure
 ```
 
-A cocos2d-x tree is hundreds of megabytes and a long build, too heavy for this repository's continuous integration. The adapter uses four engine facilities, all unchanged across 3.x and 4.0: `Ref` reference counting, `Node` with `init`, `onEnter`, and `onExit`, `FileUtils::getWritablePath`, and `log`. `shim/cocos2d.h` declares exactly those, and the harness drives the node the way a scene would, through the real native library, recording a clean and a sabotaged session and every lifecycle path. Continuous integration then runs `tickwise compare` and expects tick 421.
+A cocos2d-x tree is hundreds of megabytes and a long build, too heavy for this repository's continuous integration. The adapter uses four engine facilities, all unchanged across 3.x and 4.0: `Ref` reference counting, `Node` with `init`, `onEnter`, and `onExit`, `FileUtils::getWritablePath`, and `log`. `shim/cocos2d.h` declares exactly those, and the harness drives the node the way a scene would, through the real native library, recording a clean and a sabotaged session with dumps every 100 ticks and at tick 421, and every lifecycle path. Continuous integration then runs `tickwise compare` and expects tick 421, and `tickwise diff --at 421` and expects the score to differ.
 
 What that proves: the adapter's own logic, its use of the C++ layer, and the recordings it writes. What it does not prove: that the adapter compiles against a given cocos2d-x version's headers, which is one build of the sample scene in a real project away. The shim is deliberately small so that a drift in the engine surface it mirrors would be obvious.
 

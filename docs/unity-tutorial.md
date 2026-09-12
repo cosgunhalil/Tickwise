@@ -2,7 +2,7 @@
 
 This tutorial walks Pass 1 of the Tickwise workflow inside a Unity project. You will install the package, run a small deterministic game twice, once with a planted bug, and find the exact tick where the two runs diverged, without reading a single log file. The last section shows how to wire the same three calls into your own game.
 
-The Rust version of this tutorial, [Find your first desync in 15 minutes](tutorial.md), goes further and names the field that went wrong. That second pass, replay and diff, reaches the Unity package in a later version. Recording and compare, the part that tells you the tick, is what this version covers.
+The Rust version of this tutorial, [Find your first desync in 15 minutes](tutorial.md), goes further and names the field that went wrong. The package can do that too, through state dumps and `TickwiseReplayer`; section 6 says how. Recording and compare, the part that tells you the tick, is what the timed part of this tutorial covers.
 
 Time budget: about 7 minutes for setup, 8 for the workflow.
 
@@ -195,12 +195,20 @@ _recorder.Dispose();
 
 **Comparing** needs no code at all, only the command line tool and two files.
 
-Two things to get right. First, what your light hash covers decides what compare can catch on the first tick; section 4 showed what a gap looks like. Second, your input encoding is yours, so set `InputFormatId` and change it whenever the bytes change meaning. The replayer, when it arrives in this package, will refuse a recording made with an older encoding instead of feeding it to the wrong decoder.
+Two things to get right. First, what your light hash covers decides what compare can catch on the first tick; section 4 showed what a gap looks like. Second, your input encoding is yours, so set `InputFormatId` and change it whenever the bytes change meaning. `TickwiseReplayer` with `CheckInputFormat` on refuses a recording made with an older encoding instead of feeding it to the wrong decoder.
 
 A few Unity specifics. Record from `FixedUpdate` or from your own fixed step, never from `Update`, because a recording is only meaningful when every tick is a simulation tick. Keep the simulation in plain C# with no `UnityEngine` types in the hashed state, the way `MiniGameSim` does, because `Time`, `Random`, and physics results differ between machines by design. And write recordings under `Application.persistentDataPath`, which exists and is writable on every platform the package supports.
 
 ## 6. What comes next
 
-The compare output ends with a hint about Pass 2: replaying to tick 421 and diffing the state field by field. That pass exists today in the Rust toolkit and is on its way to this package. Until then, the tick is the lead. A desync that starts at a known tick, with a known last agreeing tick, is a bug you can reproduce, and that is most of the work.
+The compare output ends with a hint about Pass 2: getting from the tick to the field. The package offers two roads. The sample already takes the first: `MiniGameSim` implements `ITickwiseStateWriter`, and the runner records a state dump every 100 ticks and one at the chaos tick, so with the two recordings from this tutorial you can run
+
+```
+tickwise diff clean.rec chaotic.rec --at 421
+```
+
+and read `balls[0].x` as the field that moved, which is exactly where the bug was planted. No replay was needed, because the dumps were taken during the original runs; that is what makes this road work for a desync that never reproduces. The cost is a full walk of the state every 100 ticks, so keep the interval coarse in a shipping build or leave it at zero.
+
+The second road is `TickwiseReplayer`: open a recording, step your simulation through its inputs, and let `AfterTick` verify the hashes and collect a dump at exactly tick 421. The [package manual](../bridges/unity/com.cosgunhalil.tickwise/Documentation~/com.cosgunhalil.tickwise.md) shows the loop. Either way, the tick is the lead and the field is the answer.
 
 The [package README](../bridges/unity/com.cosgunhalil.tickwise/README.md) lists the supported platforms and the release process, and the [main README](../README.md) lists what Tickwise deliberately does not do.

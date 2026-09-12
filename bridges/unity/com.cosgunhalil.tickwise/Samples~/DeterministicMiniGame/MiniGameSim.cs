@@ -9,7 +9,7 @@ namespace Tickwise.Samples.DeterministicMiniGame
     /// sample. Your gameplay simulation should look like this from
     /// Tickwise's side, whatever renders it.
     /// </summary>
-    public sealed class MiniGameSim : IDeterminismProbe
+    public sealed class MiniGameSim : IDeterminismProbe, ITickwiseStateWriter
     {
         public const int BallCount = 8;
 
@@ -112,6 +112,27 @@ namespace Tickwise.Samples.DeterministicMiniGame
         public ulong FullHash()
         {
             return Xxh3.Hash64(Serialize());
+        }
+
+        /// <summary>
+        /// The same fields the full hash covers, by name, so <c>tickwise diff</c>
+        /// can say which one moved. With the planted bug it points at
+        /// <c>balls[0].x</c>, which is exactly where the bug lives.
+        /// </summary>
+        public void WriteState(TickwiseDump dump)
+        {
+            dump.SetUInt64("score", _score);
+            dump.SetUInt64("rng", _rng);
+            dump.SetUInt64("tick", _tick);
+            dump.SetLength("balls", BallCount);
+            for (int i = 0; i < BallCount; i++)
+            {
+                string ball = "balls[" + i + "]";
+                dump.SetInt64(ball + ".x", _x[i]);
+                dump.SetInt64(ball + ".y", _y[i]);
+                dump.SetInt64(ball + ".vx", _vx[i]);
+                dump.SetInt64(ball + ".vy", _vy[i]);
+            }
         }
 
         /// <summary>The full state in a fixed little-endian layout, for snapshots.</summary>

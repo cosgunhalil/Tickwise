@@ -205,6 +205,39 @@ impl<W: Write> Recorder<W> {
         inputs: &[u8],
         probe: &dyn DeterminismProbe,
     ) -> Result<(), RecordError> {
+        // The probe is asked only for what this tick keeps, so the full
+        // hash and the dump, the expensive paths, run on their intervals
+        // and never in between.
+        let light = probe.light_hash();
+        let full = if self.wants_full_hash(tick) {
+            probe.full_hash()
+        } else {
+            0
+        };
+        self.record_tick_hashes(tick, inputs, light, full)?;
+        if self.wants_dump(tick) {
+            self.write_dump(tick, probe.state_dump())?;
+        }
+        Ok(())
+    }
+
+    /// Records one tick from hashes the caller computed, the push form of
+    /// [`record_tick`](Recorder::record_tick).
+    ///
+    /// This is the primitive every engine bridge stands on: nothing calls
+    /// back into the host language. `full_hash` is written only on ticks
+    /// where [`wants_full_hash`](Recorder::wants_full_hash) is true and is
+    /// ignored otherwise, so pass zero there rather than computing it.
+    /// Dumps are not scheduled through this call; check
+    /// [`wants_dump`](Recorder::wants_dump) and call
+    /// [`record_state_dump`](Recorder::record_state_dump) yourself.
+    pub fn record_tick_hashes(
+        &mut self,
+        tick: u64,
+        inputs: &[u8],
+        light_hash: u64,
+        full_hash: u64,
+    ) -> Result<(), RecordError> {
         let first_tick_of_session = self.next_tick.is_none();
         if let Some(expected) = self.next_tick
             && tick != expected
@@ -229,7 +262,7 @@ impl<W: Write> Recorder<W> {
         if self.light_hashes.is_empty() {
             self.batch_first_tick = tick;
         }
-        self.light_hashes.push(probe.light_hash());
+        self.light_hashes.push(light_hash);
         if self.light_hashes.len() == LIGHT_HASH_BATCH_LEN {
             self.flush_light_hashes()?;
         }
@@ -237,13 +270,9 @@ impl<W: Write> Recorder<W> {
         if self.wants_full_hash(tick) {
             self.scratch.clear();
             push_u64(&mut self.scratch, tick);
-            push_u64(&mut self.scratch, probe.full_hash());
+            push_u64(&mut self.scratch, full_hash);
             self.writer
                 .write_raw_chunk(kind::FULL_HASH, tick, &self.scratch)?;
-        }
-
-        if self.wants_dump(tick) {
-            self.write_dump(tick, probe.state_dump())?;
         }
 
         self.ticks_recorded += 1;
@@ -269,6 +298,14 @@ impl<W: Write> Recorder<W> {
         probe: &dyn DeterminismProbe,
     ) -> Result<(), RecordError> {
         self.write_dump(tick, probe.state_dump())
+    }
+
+    /// Records a state dump the caller built, the push form of
+    /// [`record_dump`](Recorder::record_dump). Engine bridges assemble
+    /// the dump field by field on their side of the boundary and hand it
+    /// over whole.
+    pub fn record_state_dump(&mut self, tick: u64, dump: StateDump) -> Result<(), RecordError> {
+        self.write_dump(tick, dump)
     }
 
     fn write_dump(&mut self, tick: u64, dump: StateDump) -> Result<(), RecordError> {

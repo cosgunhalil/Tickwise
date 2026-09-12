@@ -6,6 +6,8 @@
 #include "UObject/Interface.h"
 #include "TickwiseProbe.generated.h"
 
+struct FTickwiseDump;
+
 UINTERFACE(BlueprintType, meta = (DisplayName = "Tickwise Probe"))
 class TICKWISE_API UTickwiseProbe : public UInterface
 {
@@ -41,4 +43,28 @@ public:
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Tickwise")
 	int64 FullHash() const;
+};
+
+UINTERFACE(meta = (CannotImplementInterfaceInBlueprint, DisplayName = "Tickwise State Writer"))
+class TICKWISE_API UTickwiseStateWriter : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * The optional third half of a probe, C++ only: writes the simulation's
+ * state into a dump by field name, so `tickwise diff` can say which field
+ * moved rather than only which tick. Implement it on the same object as
+ * the probe. The recorder calls it on dump ticks only, every DumpInterval
+ * ticks and on RecordDump, never every tick, so it may walk everything.
+ * Write the fields the full hash covers, in a fixed order, with a Length
+ * for every array.
+ */
+class TICKWISE_API ITickwiseStateWriter
+{
+	GENERATED_BODY()
+
+public:
+	/** Fills the dump with the current state. The dump arrives empty. */
+	virtual void WriteState(FTickwiseDump& Dump) const = 0;
 };

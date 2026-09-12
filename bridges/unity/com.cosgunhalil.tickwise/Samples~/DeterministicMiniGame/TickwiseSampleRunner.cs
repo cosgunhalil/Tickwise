@@ -27,6 +27,9 @@ namespace Tickwise.Samples.DeterministicMiniGame
         [Tooltip("First tick where the injected bug takes effect.")]
         public int chaosAtTick = 421;
 
+        [Tooltip("Record a full state dump every this many ticks, so tickwise diff names the field that moved with no replay. Zero records none. Each dump walks the whole simulation state.")]
+        public int dumpEveryTicks = 100;
+
         private MiniGameSim _sim;
         private TickwiseRecorder _recorder;
         private readonly byte[] _input = new byte[1];
@@ -55,6 +58,7 @@ namespace Tickwise.Samples.DeterministicMiniGame
                 SnapshotEvery = 300,
                 HashAlgoId = HashAlgo.Xxh3,
                 InputFormatId = 1,
+                DumpInterval = (uint)Mathf.Max(dumpEveryTicks, 0),
             }.StampCreatedAt();
 
             try
@@ -101,6 +105,8 @@ namespace Tickwise.Samples.DeterministicMiniGame
 
             try
             {
+                // Hashes every tick, the full hash on its interval, and the
+                // state dump on its own interval, all from the one call.
                 _recorder.RecordTick(_tick, _input, _sim);
                 if (_recorder.WantsSnapshot(_tick))
                 {
@@ -109,6 +115,12 @@ namespace Tickwise.Samples.DeterministicMiniGame
                 if (_tick == 300)
                 {
                     _recorder.RecordMarker(_tick, "halfway");
+                }
+                if (_tick == (ulong)chaosAtTick)
+                {
+                    // A dump at the tick under suspicion itself, whichever
+                    // interval is set, so `tickwise diff --at` lands on it.
+                    _recorder.RecordDump(_tick, _sim);
                 }
             }
             catch (TickwiseException ex)
@@ -134,10 +146,13 @@ namespace Tickwise.Samples.DeterministicMiniGame
                 _recorder.Dispose();
                 _recorder = null;
                 _status = $"finished {ticksToRecord} ticks, score {_sim.Score}\nsaved {_path}";
+                string clean = Path.Combine(Path.GetDirectoryName(_path), "clean.rec");
+                string chaotic = Path.Combine(Path.GetDirectoryName(_path), "chaotic.rec");
                 Debug.Log(
                     $"Tickwise: finished {ticksToRecord} ticks, saved {_path}\n" +
-                    "Run again with a different Session Name and Inject Chaos toggled, then compare:\n" +
-                    $"  tickwise compare \"{Path.Combine(Path.GetDirectoryName(_path), "clean.rec")}\" \"{Path.Combine(Path.GetDirectoryName(_path), "chaotic.rec")}\"");
+                    "Run again with a different Session Name and Inject Chaos toggled, then compare, and diff the dumps at the tick compare names:\n" +
+                    $"  tickwise compare \"{clean}\" \"{chaotic}\"\n" +
+                    $"  tickwise diff \"{clean}\" \"{chaotic}\" --at {chaosAtTick}");
             }
             catch (TickwiseException ex)
             {

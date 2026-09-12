@@ -74,6 +74,7 @@ namespace Tickwise.Tests
         public void NativeLibraryIsCompatible()
         {
             TickwiseNative.EnsureCompatible();
+            Assert.Equal(2u, TickwiseNative.ExpectedAbiVersion);
             Assert.Equal(TickwiseNative.ExpectedAbiVersion, TickwiseNative.AbiVersion);
             Assert.Matches(@"^\d+\.\d+\.\d+", TickwiseNative.Version);
         }

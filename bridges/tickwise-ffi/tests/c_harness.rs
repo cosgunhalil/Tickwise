@@ -8,7 +8,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tickwise::compare::{HashKind, Outcome, first_divergence};
+use tickwise::diff::{FloatPolicy, structural};
 use tickwise::format::{Chunk, RecReader};
+use tickwise::probe::StateDump;
 
 /// `target/<profile>/`, derived from the test executable's location:
 /// `target/<profile>/deps/c_harness-<hash>`.
@@ -138,7 +140,14 @@ fn c_harness_records_sessions_the_core_can_read_and_compare() {
 
     let clean = out_dir.join("clean.rec");
     let chaotic = out_dir.join("chaotic.rec");
-    for stale in [&clean, &chaotic, &out_dir.join("misuse.rec")] {
+    let dump = out_dir.join("clean.dump");
+    for stale in [
+        &clean,
+        &chaotic,
+        &dump,
+        &out_dir.join("misuse.rec"),
+        &out_dir.join("misuse.dump"),
+    ] {
         let _ = std::fs::remove_file(stale);
     }
 
@@ -173,9 +182,11 @@ fn c_harness_records_sessions_the_core_can_read_and_compare() {
     assert_eq!(reader.header().config.full_hash_interval, 50);
     assert_eq!(reader.header().config.hash_algo_id, 1);
     assert_eq!(reader.header().config.input_format_id, 42);
+    assert_eq!(reader.header().config.dump_interval, 100);
     let mut full_hashes = 0;
     let mut snapshots = 0;
     let mut markers = Vec::new();
+    let mut dump_ticks = Vec::new();
     for chunk in reader.chunks().unwrap() {
         match chunk.unwrap() {
             Chunk::FullHash { .. } => full_hashes += 1,
@@ -184,12 +195,48 @@ fn c_harness_records_sessions_the_core_can_read_and_compare() {
                 snapshots += 1;
             }
             Chunk::Marker { tick, label } => markers.push((tick, label)),
+            Chunk::StateDump { tick, dump } => {
+                assert_eq!(dump.len(), 8, "eight fields per dump at tick {tick}");
+                dump_ticks.push(tick);
+            }
             _ => {}
         }
     }
     assert_eq!(full_hashes, 12);
     assert_eq!(snapshots, 6);
     assert_eq!(markers, vec![(300, "round start".to_owned())]);
+    assert_eq!(dump_ticks, vec![0, 100, 200, 300, 400, 500]);
+
+    // The replay of the clean session wrote the two dumps it was asked
+    // for, and the one at tick 100 matches what Pass 1 recorded there.
+    let mut replayed = RecReader::open(std::fs::File::open(&dump).unwrap()).unwrap();
+    let replayed_dumps: Vec<(u64, StateDump)> = replayed
+        .chunks()
+        .unwrap()
+        .map(Result::unwrap)
+        .filter_map(|chunk| match chunk {
+            Chunk::StateDump { tick, dump } => Some((tick, dump)),
+            _ => None,
+        })
+        .collect();
+    let replayed_ticks: Vec<u64> = replayed_dumps.iter().map(|(tick, _)| *tick).collect();
+    assert_eq!(replayed_ticks, vec![100, 421]);
+    let mut recorded = RecReader::open(std::fs::File::open(&clean).unwrap()).unwrap();
+    let recorded_at_100 = recorded
+        .chunks()
+        .unwrap()
+        .map(Result::unwrap)
+        .find_map(|chunk| match chunk {
+            Chunk::StateDump { tick: 100, dump } => Some(dump),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(replayed_dumps[0].1, recorded_at_100);
+    let report = structural(&dump, &clean, FloatPolicy::default()).unwrap();
+    assert!(
+        report.is_identical(),
+        "the shared tick 100 dump diffs clean"
+    );
 
     let report = first_divergence(&clean, &chaotic).unwrap();
     match report.outcome {

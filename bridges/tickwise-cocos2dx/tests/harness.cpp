@@ -4,9 +4,10 @@
 //
 // Usage: harness <scratch-dir>
 //
-// Writes clean.rec and chaotic.rec into the scratch directory. Exit code 0
-// means every check passed; CI then runs `tickwise compare` and expects
-// tick 421.
+// Writes clean.rec and chaotic.rec into the scratch directory, each with a
+// state dump every 100 ticks and one at tick 421. Exit code 0 means every
+// check passed; CI then runs `tickwise compare` and expects tick 421, and
+// `tickwise diff --at 421` and expects the score to differ.
 
 #include "tickwise/cocos2dx/TickwiseRecorder.h"
 
@@ -59,6 +60,15 @@ struct Sim : tickwise::Probe {
         }
         return hasher.u64(score).u32(rng).finish();
     }
+
+    // Every field the full hash covers, by name, so the diff can say
+    // which one moved.
+    void state_dump(tickwise::Dump& dump) const override {
+        dump.u64("score", score).u64("rng", rng).len("pos", 4);
+        for (size_t i = 0; i < 4; ++i) {
+            dump.u64("pos[" + std::to_string(i) + "]", pos[i]);
+        }
+    }
 };
 
 // What a scene does: create the node, configure it, add it, step, leave.
@@ -75,6 +85,7 @@ void runScene(const std::string& file, bool defect) {
     recorder->config.tick_rate = 60;
     recorder->config.rng_seed = 12345;
     recorder->config.full_hash_interval = 50;
+    recorder->config.dump_interval = 100;
     recorder->config.input_format_id = 42;
 
     Sim sim(12345);
@@ -98,6 +109,11 @@ void runScene(const std::string& file, bool defect) {
         if (tick == 300) {
             recorder->recordMarker("round start");
         }
+        if (tick == kDivergenceAt) {
+            // An on-demand dump at the planted tick itself, so `diff --at 421`
+            // has both sides at the very tick compare names.
+            CHECK(recorder->recordDump());
+        }
     }
     CHECK(recorder->getTick() == kTicks);
     CHECK(recorder->getLastError().empty());
@@ -119,6 +135,7 @@ void checkLifecycle(const std::string& scratch) {
     CHECK(!recorder->recordTick());
     CHECK(!recorder->isRecording());
     CHECK(recorder->getLastError().find("no probe") != std::string::npos);
+    CHECK(!recorder->recordDump());
 
     // A bad path fails to open with a message.
     recorder->setProbe(&sim);
@@ -131,6 +148,8 @@ void checkLifecycle(const std::string& scratch) {
     CHECK(recorder->startRecording(scratch + "/again.rec"));
     CHECK(recorder->recordTick());
     CHECK(recorder->getTick() == 1);
+    // An on-demand dump lands at the last recorded tick.
+    CHECK(recorder->recordDump());
     recorder->stopRecording();
     CHECK(!recorder->isRecording());
 

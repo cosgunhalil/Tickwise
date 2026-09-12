@@ -8,7 +8,7 @@ New here? [Find your first desync in Unity in 15 minutes](https://github.com/cos
 
 ## Status
 
-Under construction, milestone M6 of the Tickwise v2 roadmap. This first version covers Pass 1 of the workflow, recording and compare. Replay and field-level diff over the C ABI follow in a later version.
+Under construction, milestone M6 of the Tickwise v2 roadmap. Both passes of the workflow are in the package: recording and compare, state dumps on an interval for a replay-free `tickwise diff`, and `TickwiseReplayer` for the replay-based diff. The manual under `Documentation~` walks them.
 
 ## Requirements
 
@@ -51,7 +51,7 @@ A release is one manual run of the Unity release workflow in the repository's Ac
 
 ## Testing
 
-The wrapper is tested without an editor. `bridges/unity/Tickwise.Tests` is a plain .NET 8 xunit project that compiles the `Runtime/` sources directly, loads the native library from the `tickwise-ffi` release build, records sessions, and verifies them with the `tickwise` command line tool built from this repository. It runs in continuous integration on Windows, macOS, and Linux.
+The wrapper is tested without an editor. `bridges/unity/Tickwise.Tests` is a plain .NET 8 xunit project that compiles the `Runtime/` sources directly, loads the native library from the `tickwise-ffi` release build, records sessions with dumps, replays them, and verifies the files with the `tickwise` command line tool built from this repository: `inspect`, `compare`, and `diff`. It runs in continuous integration on Windows, macOS, and Linux.
 
 ```
 cd bridges/tickwise-ffi && cargo build --release && cd ../..

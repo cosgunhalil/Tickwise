@@ -6,7 +6,7 @@ Record and compare deterministic simulations to find desyncs, from inside an Unr
 
 ## Status
 
-Under construction, milestone M9 of the Tickwise v2 roadmap. This first version covers Pass 1 of the workflow, recording and compare. Replay and the field-level diff follow. Built against Unreal Engine 4.26; the module has no 4.26-specific code and is expected to build on 5.x, which is unverified until someone tries.
+Under construction, milestone M9 of the Tickwise v2 roadmap. The component records and, with `DumpInterval` set, dumps state on an interval so `tickwise diff` reaches field level with no replay; Pass 2 replay is available from C++ through `tickwise::Replayer` in the shared header. Built against Unreal Engine 4.26; the module has no 4.26-specific code and is expected to build on 5.x, which is unverified until someone tries.
 
 ## The shape of it
 
@@ -52,6 +52,26 @@ tickwise compare clean.rec chaotic.rec
                  confirmed by the full hash at tick 450, last agreement at tick 420
 ```
 
+To get from the tick to the field, give the recordings state dumps. Implement `ITickwiseStateWriter` beside the probe and set `DumpInterval` on the component; `RecordDump` adds one on demand, for example next to a round start marker. Each dump walks all of gameplay state, which is why the interval is opt-in.
+
+```cpp
+void AMatch::WriteState(FTickwiseDump& Dump) const
+{
+    Dump.Int(TEXT("Score"), Score).Int(TEXT("Rng"), RngState).Length(TEXT("Units"), Units.Num());
+    for (int32 i = 0; i < Units.Num(); ++i)
+    {
+        const FString Unit = FString::Printf(TEXT("Units[%d]"), i);
+        Dump.IntPoint(Unit + TEXT(".Cell"), Units[i].Cell).Int(Unit + TEXT(".Health"), Units[i].Health);
+    }
+}
+```
+
+```
+tickwise diff clean.rec chaotic.rec --at 450
+```
+
+The interface is C++ only: a Blueprint cannot fill a dump. Replaying a recording, Pass 2 proper, is a plain C++ loop over `tickwise::Replayer` from `tickwise/tickwise.hpp`, which every plugin source already sees through `TickwiseNative.h`; the shared layer's README shows the loop.
+
 ## Why the component does not record on its own
 
 Unreal's frame is a variable timestep. A recording is only meaningful when every tick is a simulation tick, so the component records when you call `RecordTick` and never guesses. For a game that steps once per component tick at a fixed frame rate, `bRecordEveryComponentTick` makes the call for you; it is off by default, and the component ticks in `TG_PostUpdateWork` so it sees the state the frame produced.
@@ -60,8 +80,10 @@ Unreal's frame is a variable timestep. A recording is only meaningful when every
 
 | Type | Purpose |
 |---|---|
-| `UTickwiseRecorderComponent` | The session: `StartRecording`, `StopRecording`, `SetInputs`, `RecordTick`, `RecordMarker`, status getters, and the session properties as `UPROPERTY` |
+| `UTickwiseRecorderComponent` | The session: `StartRecording`, `StopRecording`, `SetInputs`, `RecordTick`, `RecordMarker`, `RecordDump`, status getters, and the session properties including `DumpInterval` as `UPROPERTY` |
 | `ITickwiseProbe` | The two-hash interface, `BlueprintNativeEvent` so Blueprint can implement it |
+| `ITickwiseStateWriter` | The optional C++ interface that writes state into a dump by field name, for `tickwise diff` |
+| `FTickwiseDump` | The dump builder with typed setters and overloads for vectors, rotators, and points, each field under a dotted path |
 | `FTickwiseHasher` | C++ hashing over `Add` overloads for the common engine types, in a fixed byte layout, so two machines hash the same fields the same way |
 | `UTickwiseHashLibrary` | Blueprint hashing: `HashBytes`, `HashInts`, `HashFloats`, `HashString`, `CombineHashes` |
 | `FTickwiseModule` | Loads the native library from the plugin folder at startup and refuses to record when the ABI does not match |
