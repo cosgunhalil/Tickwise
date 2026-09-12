@@ -228,6 +228,60 @@ fn input_for(tick: u64) -> Input {
 }
 
 #[test]
+fn a_serde_probe_refuses_a_header_that_names_another_hash_algorithm() {
+    let sim = Sim {
+        tick: 0,
+        x: 0,
+        y: 0,
+        airborne: false,
+    };
+
+    // The footgun: the default header says caller-defined, the probe
+    // hashes with xxh3. The first tick fails, nothing is mislabelled.
+    let mut rec = Recorder::new(Vec::new(), RecorderConfig::default()).unwrap();
+    let err = rec
+        .record_tick_typed(0, &input_for(0), &SerdeProbe::new(&sim))
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            tickwise::RecordError::HashAlgoMismatch {
+                header: 0,
+                probe: 1
+            }
+        ),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("with_hash_algo_id"), "{err}");
+
+    // The fix is one call, and the header then carries the right id.
+    let config = RecorderConfig::default().with_hash_algo(HashAlgo::Xxh3);
+    let mut rec = Recorder::new(Vec::new(), config).unwrap();
+    rec.record_tick_typed(0, &input_for(0), &SerdeProbe::new(&sim))
+        .unwrap();
+    let bytes = rec.finish().unwrap();
+    let reader = RecReader::open(Cursor::new(bytes)).unwrap();
+    assert_eq!(reader.header().config.hash_algo_id, 1);
+
+    // A hand-written probe makes no claim, so any header id is accepted.
+    struct ByHand;
+    impl DeterminismProbe for ByHand {
+        fn light_hash(&self) -> u64 {
+            1
+        }
+        fn full_hash(&self) -> u64 {
+            2
+        }
+        fn state_dump(&self) -> tickwise::StateDump {
+            tickwise::StateDump::empty()
+        }
+    }
+    let mut rec =
+        Recorder::new(Vec::new(), RecorderConfig::default().with_hash_algo_id(9)).unwrap();
+    rec.record_tick(0, &[], &ByHand).unwrap();
+}
+
+#[test]
 fn the_whole_two_pass_workflow_runs_on_a_derived_state() {
     let format = format_id("Input v1");
     let config = RecorderConfig {

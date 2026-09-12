@@ -15,7 +15,7 @@
 //!
 //! ```
 //! use serde::Serialize;
-//! use tickwise::serde_probe::SerdeProbe;
+//! use tickwise::serde_probe::{HashAlgo, SerdeProbe};
 //! use tickwise::{Recorder, RecorderConfig};
 //!
 //! #[derive(Serialize)]
@@ -23,7 +23,9 @@
 //!
 //! # fn main() -> Result<(), tickwise::RecordError> {
 //! let mut game = Game { tick: 0, score: 0, positions: vec![(0.0, 0.0)] };
-//! let mut rec = Recorder::new(Vec::new(), RecorderConfig::default())?;
+//! // The probe hashes with xxh3, and the header must say so.
+//! let config = RecorderConfig::default().with_hash_algo(HashAlgo::Xxh3);
+//! let mut rec = Recorder::new(Vec::new(), config)?;
 //! for tick in 0..100 {
 //!     game.tick += 1;
 //!     game.positions[0].0 += 0.5;
@@ -77,6 +79,16 @@ impl HashAlgo {
                 u64::from_le_bytes(first)
             }
         }
+    }
+}
+
+impl crate::recorder::RecorderConfig {
+    /// Sets `hash_algo_id` to the algorithm a [`SerdeProbe`] hashes with.
+    /// The recorder refuses the first tick from a probe whose algorithm
+    /// disagrees with the header, so set this whenever the probe is not
+    /// hand-written.
+    pub fn with_hash_algo(self, algo: HashAlgo) -> Self {
+        self.with_hash_algo_id(algo.id())
     }
 }
 
@@ -140,7 +152,8 @@ impl<'a, S: Serialize + ?Sized, L: Serialize + ?Sized> SerdeProbe<'a, S, L> {
         self
     }
 
-    /// The `hash_algo_id` to put in [`RecorderConfig`](crate::RecorderConfig).
+    /// The `hash_algo_id` to put in [`RecorderConfig`](crate::RecorderConfig),
+    /// also reported through the probe trait so the recorder can check it.
     pub fn hash_algo_id(&self) -> u16 {
         self.algo.id()
     }
@@ -162,6 +175,10 @@ impl<S: Serialize + ?Sized, L: Serialize + ?Sized> DeterminismProbe for SerdePro
 
     fn full_hash(&self) -> u64 {
         self.hash_of(self.state)
+    }
+
+    fn hash_algo_id(&self) -> u16 {
+        self.algo.id()
     }
 
     fn state_dump(&self) -> StateDump {

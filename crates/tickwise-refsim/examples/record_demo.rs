@@ -14,6 +14,16 @@ use tickwise_refsim::{ChaosConfig, Lcg, PlayerInput, World, WorldConfig};
 const USAGE: &str =
     "usage: record_demo <out.rec> [--chaos <mode> [start_tick]] [--dump-every <ticks>]";
 
+/// The wall clock as unix seconds, for the header's `created_at`. It is
+/// metadata only, never compared, so it is the one place a demo may
+/// read the clock.
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(out_path) = args.first() else {
@@ -74,7 +84,7 @@ fn main() {
             platform: std::env::consts::OS.to_string(),
             tick_rate: 60,
             rng_seed: seed,
-            created_at: 1_756_400_000,
+            created_at: unix_now(),
         },
         full_hash_interval: 300,
         snapshot: SnapshotPolicy::Every(1800),

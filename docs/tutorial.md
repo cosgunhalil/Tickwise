@@ -50,7 +50,7 @@ clean.rec
   platform       windows
   tick rate      60 ticks per second
   rng seed       0x0000000000ddba11
-  created at     unix 1756400000
+  created at     2025-08-28 16:53:20 UTC, unix 1756400000
   full hashes    every 300 ticks
   snapshots      every 1800 ticks
   hash algo      id 0
@@ -250,13 +250,16 @@ The workflow above is three integration points, and Tickwise never touches your 
 
 ```rust
 use serde::Serialize;
-use tickwise::serde_probe::SerdeProbe;
+use tickwise::serde_probe::{HashAlgo, SerdeProbe};
 use tickwise::{Recorder, RecorderConfig};
 
 #[derive(Serialize)]
 struct Game { tick: u64, score: u64, positions: Vec<(f32, f32)> }
 
-let mut rec = Recorder::create("session.rec", RecorderConfig::default())?;
+// SerdeProbe hashes with xxh3; the header must say so, and the recorder
+// refuses the first tick if it does not.
+let config = RecorderConfig::default().with_hash_algo(HashAlgo::Xxh3);
+let mut rec = Recorder::create("session.rec", config)?;
 // inside your loop, every tick:
 rec.record_tick_typed(tick, &input, &SerdeProbe::new(&game))?;
 // at the end:

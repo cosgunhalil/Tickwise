@@ -93,7 +93,10 @@ pub fn render<P: AsRef<Path>>(path: P) -> Result<Report, FormatError> {
         meta.tick_rate
     ));
     s.push_str(&format!("  rng seed       {:#018x}\n", meta.rng_seed));
-    s.push_str(&format!("  created at     unix {}\n", meta.created_at));
+    s.push_str(&format!(
+        "  created at     {}\n",
+        render_created_at(meta.created_at)
+    ));
     s.push_str(&match config.full_hash_interval {
         0 => "  full hashes    disabled\n".to_string(),
         n => format!("  full hashes    every {n} ticks\n"),
@@ -209,6 +212,44 @@ fn or_unset(value: &str) -> &str {
     if value.is_empty() { "unset" } else { value }
 }
 
+/// Renders the header's creation time as a UTC date with the raw unix
+/// value beside it, or `unset` for zero, which is what a recorder that
+/// never stamped the header writes.
+fn render_created_at(unix: u64) -> String {
+    if unix == 0 {
+        return "unset, unix 0".to_string();
+    }
+    let days = (unix / 86_400) as i64;
+    let seconds = unix % 86_400;
+    let (year, month, day) = civil_from_days(days);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02} UTC, unix {unix}",
+        seconds / 3600,
+        seconds % 3600 / 60,
+        seconds % 60
+    )
+}
+
+/// Days since 1970-01-01 to a proleptic Gregorian date, Howard Hinnant's
+/// algorithm, so the CLI needs no calendar dependency.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let day_of_era = z.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted_month = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
+    let month = if shifted_month < 10 {
+        shifted_month + 3
+    } else {
+        shifted_month - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    (year, month as u32, day as u32)
+}
+
 fn snapshot_note(ticks: &[u64]) -> String {
     match ticks {
         [] => String::new(),
@@ -249,6 +290,24 @@ mod tests {
         assert_eq!(human_bytes(512), "512 B");
         assert_eq!(human_bytes(2048), "2.0 KiB");
         assert_eq!(human_bytes(5 * 1024 * 1024), "5.0 MiB");
+    }
+
+    #[test]
+    fn created_at_renders_as_a_utc_date_with_the_raw_value() {
+        assert_eq!(render_created_at(0), "unset, unix 0");
+        assert_eq!(
+            render_created_at(1_756_400_000),
+            "2025-08-28 16:53:20 UTC, unix 1756400000"
+        );
+        assert_eq!(
+            render_created_at(1_788_698_198),
+            "2026-09-06 12:36:38 UTC, unix 1788698198"
+        );
+        // The epoch, a leap day, and the end of a year.
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
+        assert_eq!(civil_from_days(19_722), (2023, 12, 31));
+        assert_eq!(civil_from_days(19_723), (2024, 1, 1));
     }
 
     #[test]

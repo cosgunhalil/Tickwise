@@ -26,6 +26,16 @@ pub enum RecordError {
         /// The tick it was given.
         got: u64,
     },
+    /// The probe hashes with a registered algorithm and the header, already
+    /// written, names a different one. The recording would be mislabelled,
+    /// so nothing is written.
+    HashAlgoMismatch {
+        /// The `hash_algo_id` in [`RecorderConfig`].
+        header: u16,
+        /// The id the probe reports through
+        /// [`DeterminismProbe::hash_algo_id`].
+        probe: u16,
+    },
     /// Serializing typed inputs failed.
     #[cfg(feature = "serde")]
     InputEncode(postcard::Error),
@@ -40,6 +50,12 @@ impl std::fmt::Display for RecordError {
                 "non-sequential tick: expected {expected}, got {got}, \
                  record_tick must be called once per tick in order"
             ),
+            Self::HashAlgoMismatch { header, probe } => write!(
+                f,
+                "hash algorithm mismatch: the recorder config says hash_algo_id {header} \
+                 but the probe hashes with id {probe}; set RecorderConfig::hash_algo_id \
+                 to {probe}, for example with with_hash_algo_id, so tools read the recording right"
+            ),
             #[cfg(feature = "serde")]
             Self::InputEncode(err) => write!(f, "cannot encode typed inputs: {err}"),
         }
@@ -50,7 +66,7 @@ impl std::error::Error for RecordError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Format(err) => Some(err),
-            Self::NonSequentialTick { .. } => None,
+            Self::NonSequentialTick { .. } | Self::HashAlgoMismatch { .. } => None,
             #[cfg(feature = "serde")]
             Self::InputEncode(err) => Some(err),
         }
@@ -73,7 +89,14 @@ pub struct RecorderConfig {
     /// Snapshot policy, echoed in the header and served by
     /// [`Recorder::wants_snapshot`].
     pub snapshot: SnapshotPolicy,
-    /// Identifier of the hash algorithm the probe uses.
+    /// Identifier of the hash algorithm the probe uses, decision #15: zero
+    /// for hashing of your own, 1 for xxh3, 2 for blake3. It is metadata
+    /// for the tools, and it must agree with the probe: a probe that
+    /// reports a nonzero [`hash_algo_id`](DeterminismProbe::hash_algo_id),
+    /// such as the serde layer's, fails the first `record_tick` when this
+    /// field says something else. [`with_hash_algo_id`] sets it.
+    ///
+    /// [`with_hash_algo_id`]: RecorderConfig::with_hash_algo_id
     pub hash_algo_id: u16,
     /// User-declared input encoding identifier, decision #11.
     pub input_format_id: u64,
@@ -100,6 +123,22 @@ impl Default for RecorderConfig {
             input_format_id: 0,
             dump_interval: 0,
         }
+    }
+}
+
+impl RecorderConfig {
+    /// Sets [`hash_algo_id`](RecorderConfig::hash_algo_id), the one field
+    /// every probe on a registered algorithm needs.
+    ///
+    /// ```
+    /// use tickwise::RecorderConfig;
+    ///
+    /// let config = RecorderConfig::default().with_hash_algo_id(1);
+    /// assert_eq!(config.hash_algo_id, 1);
+    /// ```
+    pub fn with_hash_algo_id(mut self, id: u16) -> Self {
+        self.hash_algo_id = id;
+        self
     }
 }
 
@@ -146,6 +185,7 @@ pub struct Recorder<W: Write> {
     full_hash_interval: u32,
     dump_interval: u32,
     snapshot: SnapshotPolicy,
+    hash_algo_id: u16,
     next_tick: Option<u64>,
     ticks_recorded: u64,
     batch_first_tick: u64,
@@ -180,6 +220,7 @@ impl<W: Write> Recorder<W> {
             full_hash_interval: config.full_hash_interval,
             dump_interval: config.dump_interval,
             snapshot: config.snapshot,
+            hash_algo_id: config.hash_algo_id,
             next_tick: None,
             ticks_recorded: 0,
             batch_first_tick: 0,
@@ -205,6 +246,16 @@ impl<W: Write> Recorder<W> {
         inputs: &[u8],
         probe: &dyn DeterminismProbe,
     ) -> Result<(), RecordError> {
+        // A probe on a registered algorithm must agree with the header,
+        // which is already on disk. Zero from the probe is no claim, the
+        // hand-written case, and is never checked.
+        let claimed = probe.hash_algo_id();
+        if claimed != 0 && claimed != self.hash_algo_id {
+            return Err(RecordError::HashAlgoMismatch {
+                header: self.hash_algo_id,
+                probe: claimed,
+            });
+        }
         // The probe is asked only for what this tick keeps, so the full
         // hash and the dump, the expensive paths, run on their intervals
         // and never in between.

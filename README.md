@@ -22,14 +22,15 @@ With the `serde` feature, any `Serialize` state becomes a probe in a few lines:
 
 ```rust
 use serde::Serialize;
-use tickwise::serde_probe::SerdeProbe;
+use tickwise::serde_probe::{HashAlgo, SerdeProbe};
 use tickwise::{Recorder, RecorderConfig};
 
 #[derive(Serialize)]
 struct Game { tick: u64, score: u64, positions: Vec<(f32, f32)> }
 
 let mut game = Game { tick: 0, score: 0, positions: vec![(0.0, 0.0)] };
-let mut rec = Recorder::create("session.rec", RecorderConfig::default())?;
+let config = RecorderConfig::default().with_hash_algo(HashAlgo::Xxh3);
+let mut rec = Recorder::create("session.rec", config)?;
 for tick in 0..600 {
     let input = (1u8, 0u8);         // your own input type
     game.tick += 1;                 // your own simulation step

@@ -441,7 +441,7 @@ jobs:
         run: dotnet test bridges/unity/Tickwise.Tests --logger "console;verbosity=normal"
 
   fuzz-smoke:
-    name: fuzz the .rec reader for 60 seconds
+    name: fuzz the reader and the pair comparators for 60 seconds each
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -454,15 +454,25 @@ jobs:
         with:
           tool: cargo-fuzz
 
-      - name: Seed the corpus with a valid recording
+      - name: Seed the corpora with valid recordings
         run: |
-          mkdir -p fuzz/corpus/rec_reader
-          cargo run -p tickwise-refsim --example record_demo -- fuzz/corpus/rec_reader/seed.rec
+          mkdir -p fuzz/corpus/rec_reader fuzz/corpus/compare_pairs
+          cargo run -p tickwise-refsim --example record_demo -- fuzz/corpus/rec_reader/seed.rec --dump-every 600
+          cargo run -p tickwise-refsim --example record_demo -- /tmp/chaotic.rec --chaos float-drift --dump-every 600
+          # The pair target reads a u32 split point, then both files back to back.
+          python3 - <<'EOF'
+          import struct
+          a = open('fuzz/corpus/rec_reader/seed.rec', 'rb').read()
+          b = open('/tmp/chaotic.rec', 'rb').read()
+          with open('fuzz/corpus/compare_pairs/seed.bin', 'wb') as out:
+              out.write(struct.pack('<I', len(a)) + a + b)
+          EOF
 
-      - name: Run the fuzzer
+      - name: Run the fuzzers
         run: |
           set -o pipefail
           cargo fuzz run rec_reader --target x86_64-unknown-linux-gnu -- -max_total_time=60 2>&1 | tee fuzz-output.log
+          cargo fuzz run compare_pairs --target x86_64-unknown-linux-gnu -- -max_total_time=60 2>&1 | tee -a fuzz-output.log
 
       - name: Summarize the failure
         if: failure()

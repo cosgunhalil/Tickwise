@@ -99,6 +99,9 @@ impl From<RecordError> for FfiError {
         let status = match &err {
             RecordError::NonSequentialTick { .. } => TickwiseStatus::NonSequentialTick,
             RecordError::Format(FormatError::TooLarge) => TickwiseStatus::InvalidArgument,
+            // Unreachable over the push surface, where no probe exists, but
+            // mapped so a future path cannot fall through to Io.
+            RecordError::HashAlgoMismatch { .. } => TickwiseStatus::InvalidArgument,
             _ => TickwiseStatus::Io,
         };
         Self::new(status, err.to_string())

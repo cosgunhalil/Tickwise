@@ -6,9 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- A `SerdeProbe` recorded under `RecorderConfig::default()` now fails the first tick with `HashAlgoMismatch`, because the default header says caller-defined hashing while the probe uses xxh3. Add `.with_hash_algo(HashAlgo::Xxh3)` to the config; every example and the tutorial do.
+- `tickwise inspect` exits with 2 when it cannot read the file, matching `compare` and `diff`. Exit 1 remains the verdict for a corrupt recording. The usage text documents the exit codes of all three commands.
+
 ### Added
 - Dumps at recording time. `RecorderConfig::dump_interval` schedules a full state dump every N ticks during Pass 1, stored in the `.rec` file; `Recorder::record_dump` takes one on demand. `compare` reports the dumps each recording carries and points at the first shared dump after the divergence, and `tickwise diff` accepts `.rec` files that carry dumps, with `--at <tick>` to pick one. Field level for a desync that does not reproduce, with no replay. The header gains a `dump_interval` field, appended so recordings made before it read back as having none. The `record_demo` example takes `--dump-every`.
 - `Recorder::wants_full_hash(tick)` reports whether the next `record_tick` will request a full hash at that tick, the twin of `wants_snapshot`. Callers that compute hashes themselves, such as the engine bridges over the C ABI, use it to skip the expensive full hash on every other tick. Probe-based Rust callers are unaffected.
+- `DeterminismProbe::hash_algo_id`, a defaulted method returning zero, meaning no claim. `SerdeProbe` reports its algorithm through it, and `Recorder::record_tick` fails with the new `RecordError::HashAlgoMismatch` when a probe's nonzero id disagrees with `RecorderConfig::hash_algo_id`, instead of writing a recording whose header names the wrong hash. `RecorderConfig::with_hash_algo_id` sets the field, and `with_hash_algo(HashAlgo)` does the same behind the `serde` feature. Hand-written probes are unaffected.
+- `tickwise inspect` renders `created at` as a UTC date with the unix value beside it, and `record_demo` stamps the real clock instead of a constant.
+- A second fuzz target, `compare_pairs`, mutates pairs of recordings and runs first-divergence search and the structural diff over them; CI runs it beside `rec_reader`.
 - Push-model primitives for callers without a probe, the shape the C ABI needs: `Recorder::record_tick_hashes` and `Recorder::record_state_dump` take hashes and dumps computed elsewhere, and `Replayer::wants_dump`, `Replayer::wants_full_hash`, and `Replayer::after_tick_hashes` do the same on the replay side. `ReplayError::MissingDump` reports a dump owed at a tick and not given, leaving the step pending so the call can be repeated with one. `Replayer::check_protocol` is public, so a caller can run the finish-time check without consuming the replayer. The probe forms delegate to these and behave as before.
 
 ## [0.2.2] - 2026-09-05

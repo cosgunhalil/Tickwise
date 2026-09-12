@@ -64,10 +64,21 @@ pub trait DeterminismProbe {
 
     /// Returns a full structural dump of the gameplay state.
     ///
-    /// Called only during Pass 2 replay, at the target ticks requested for
-    /// dumping. This is the expensive path and it is allowed to be: it runs
+    /// Called only on dump ticks: during Pass 2 replay at the ticks
+    /// requested for dumping, and during Pass 1 when a dump interval is
+    /// set. This is the expensive path and it is allowed to be: it runs
     /// a handful of times per session, not every tick.
     fn state_dump(&self) -> StateDump;
+
+    /// The `hash_algo_id` this probe's hashes belong to, or zero when the
+    /// probe makes no claim. Zero is the default and means caller-defined
+    /// hashing, decision #15; a probe built on a registered algorithm,
+    /// such as the serde layer's xxh3 or blake3, reports its id so the
+    /// recorder can refuse a header that says otherwise instead of
+    /// writing a mislabelled recording.
+    fn hash_algo_id(&self) -> u16 {
+        0
+    }
 }
 
 #[cfg(test)]

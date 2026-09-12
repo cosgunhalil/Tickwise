@@ -27,7 +27,11 @@ Diff flags:
   --all                show every difference instead of the first 100 per tick
   --no-color           plain output, also honored via the NO_COLOR variable
 
-Exit codes for compare and diff: 0 identical, 1 differences found, 2 trouble.
+Exit codes, the diff convention: 0 clean, 1 findings, 2 trouble.
+  compare   1 when the recordings diverge
+  diff      1 when the dumps differ
+  inspect   1 when the recording fails its checksum or structure checks
+  Anything that stops a command, a missing file or a malformed argument, is 2.
 
 Options:
   -h, --help       show this help
@@ -56,7 +60,7 @@ pub fn run(args: &[String]) -> u8 {
                 }
                 Err(err) => {
                     eprintln!("tickwise inspect: {err}");
-                    1
+                    2
                 }
             },
             _ => {

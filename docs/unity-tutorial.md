@@ -55,7 +55,7 @@ tickwise inspect ".../tickwise/clean.rec"
   platform       WindowsEditor
   tick rate      60 ticks per second
   rng seed       0x0000000000003039
-  created at     unix 1788698198
+  created at     2026-09-06 12:36:38 UTC, unix 1788698198
   full hashes    every 50 ticks
   snapshots      every 300 ticks
   hash algo      id 1
