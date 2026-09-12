@@ -9,7 +9,7 @@
 
 Tickwise is an engine-agnostic recording, replay, and desync-debugging toolkit for deterministic multiplayer games, written in Rust. Determinism is a promise that must be verified every single tick, and Tickwise exists to make that vigilance cheap.
 
-> ⚠️ **Status: early development.** Version 0.2.2 is on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli) and covers the full two-pass workflow: record, compare, replay, diff. The API and the recording format may change freely until 1.0.
+> **Status: feature complete, pre-1.0.** The Rust core and the command line tool are on crates.io as [tickwise](https://crates.io/crates/tickwise) and [tickwise-cli](https://crates.io/crates/tickwise-cli), version 0.2.2, and cover the full two-pass workflow: record, compare, replay, diff, plus a replay-free diff from state dumps recorded during play. Six engine bridges live in this repository, for Unity, Bevy, Godot, Unreal, cocos2d-x, and any C or C++ host through the C ABI, each with its own tests in CI. The API and the recording format may still change before 1.0, and every change is listed in the [CHANGELOG](https://github.com/cosgunhalil/Tickwise/blob/main/CHANGELOG.md).
 
 ## Try it
 
@@ -44,7 +44,10 @@ Performance-sensitive code implements the three-method `DeterminismProbe` trait 
 tickwise inspect session.rec        # what is in a recording
 tickwise compare a.rec b.rec        # first divergent tick between two sessions
 tickwise diff a.dump b.dump         # field-level differences at that tick
+tickwise diff a.rec b.rec --at 4200 # the same, from dumps recorded during play
 ```
+
+Not writing Rust? The same three calls exist for [Unity](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/unity/com.cosgunhalil.tickwise), [Bevy](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-bevy), [Godot](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-godot), [Unreal](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-unreal), [cocos2d-x](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cocos2dx), and plain [C](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-ffi) or [C++](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cpp); the recordings they write are the same files, so a session from Unity compares against one from Unreal.
 
 New here? [Find your first desync in 15 minutes](https://github.com/cosgunhalil/Tickwise/blob/main/docs/tutorial.md) walks the whole workflow on the reference simulation, including a real bug caught and named. Unity developer? [The Unity tutorial](https://github.com/cosgunhalil/Tickwise/blob/main/docs/unity-tutorial.md) does the same inside the editor with the Tickwise package. Wiring up your own game? The [hash coverage checklist](https://github.com/cosgunhalil/Tickwise/blob/main/docs/hash-coverage.md) says what belongs in each hash and why, and the [light hash budget guide](https://github.com/cosgunhalil/Tickwise/blob/main/docs/light-hash-budget.md) shows the measured per-tick cost, 20 nanoseconds for the recorder itself.
 
@@ -83,6 +86,8 @@ Tickwise is an observer. It never runs your simulation. You drive your own game 
 └───────────────────────────────────────────────────────────┘
 ```
 
+Pass 2 assumes the desync reproduces when the recorded inputs are replayed. When it does not, record state dumps during play instead: `dump_interval` in the recorder config stores a full state dump every N ticks inside the `.rec`, `compare` names the first shared dump after the divergence, and `tickwise diff a.rec b.rec --at <tick>` reaches field level with no replay at all. It costs a full walk of your state every N ticks, so it is opt-in, and the [hash coverage checklist](https://github.com/cosgunhalil/Tickwise/blob/main/docs/hash-coverage.md) weighs the trade.
+
 There is an even simpler entry point: the **self-check**. Play a session once, replay its recorded inputs through your simulation, record that too, and compare:
 
 ```
@@ -93,15 +98,16 @@ If the verdict is anything but identical, your simulation is not deterministic, 
 
 ## CLI
 
-Three commands in v1, no more:
+Three commands, no more:
 
 ```
-tickwise compare a.rec b.rec   # first divergent tick + hash kind + summary
-tickwise diff a.dump b.dump    # structural diff, float-classified, colored output
-tickwise inspect session.rec   # metadata + statistics
+tickwise compare a.rec b.rec        # first divergent tick + hash kind + what to do next
+tickwise diff a.dump b.dump         # structural diff, float-classified, colored output
+tickwise diff a.rec b.rec --at 421  # the same over dumps stored in the recordings
+tickwise inspect session.rec        # metadata + statistics
 ```
 
-The diff classifies rather than judges. Differences are reported as `Structural`, `Exact`, or `SubEpsilonFloat`, so both float-based and fixed-point simulations are first-class citizens.
+Exit codes follow `diff`: 0 for identical, 1 for a difference, 2 for an error, so a build script can branch on the verdict. The diff classifies rather than judges. Differences are reported as `Structural`, `Exact`, or `SubEpsilonFloat`, so both float-based and fixed-point simulations are first-class citizens.
 
 ## How Tickwise compares
 
@@ -115,42 +121,43 @@ The diff classifies rather than judges. Differences are reported as `Structural`
 
 rr records execution at the syscall level. Tickwise records simulation at the tick level, which is the layer where "tick 4021, `players[2].velocity.x` diverged" is even expressible. GGRS users are especially welcome: Tickwise complements SyncTest with a persistent recording format, offline comparison, and structural diffs.
 
-## Roadmap
+## What is in the repository
 
-| Milestone | Content | Definition of done | Status |
-|---|---|---|---|
-| **M0** | Workspace skeleton, probe trait, reference simulation | Refsim runs 10k ticks deterministically, CI green | ✓ |
-| **M1** | Recorder, `.rec` format, `inspect` | Recording round-trip tests pass, 0.1.0 on crates.io | ✓ |
-| **M2** | `compare` for first divergence, chaos flags | All chaos classes caught at the correct tick | ✓ |
-| **M3** | Replayer, dumps, `diff`, serde layer, GGRS integration | Two-pass workflow end-to-end, 0.2.0 on crates.io | ✓ |
-| **M4** | Launch package: docs, examples, tutorial, benchmarks | A stranger finds their first desync in 15 minutes, unaided | in progress |
+The Rust core and the command line tool, v1:
 
-## v2 roadmap: engine bridges
-
-v1 is the Rust core and the command line tool. v2 brings the same two-pass workflow to engines, in this order:
-
-| Milestone | Bridge | Shape |
+| Milestone | Content | Status |
 |---|---|---|
-| **M5** | `tickwise-ffi` | C ABI over the core, shared and static library, generated header, prebuilt binaries for Windows, macOS, Linux, Android, and iOS |
-| **M6** | Unity | C# package over the C ABI, installable by git URL |
-| **M7** | Bevy | Native crate: a Reflect-walking probe and a fixed timestep plugin, see [bridges/tickwise-bevy](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-bevy) |
-| **M8** | Godot | GDExtension built with the gdext crate against the core, see [bridges/tickwise-godot](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-godot) |
-| **M9** | Unreal | C++ plugin over the C ABI, see [bridges/tickwise-unreal](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-unreal), on a shared C++ layer in [bridges/tickwise-cpp](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cpp) |
-| **M10** | cocos2d-x | C++ wrapper over the C ABI, see [bridges/tickwise-cocos2dx](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cocos2dx) |
+| **M0** | Workspace skeleton, probe trait, reference simulation with chaos flags | ✓ |
+| **M1** | Recorder, `.rec` format, `inspect` | ✓ 0.1.0 |
+| **M2** | `compare` for first divergence; every chaos class caught at the correct tick in CI | ✓ |
+| **M3** | Replayer, dumps, `diff`, serde layer, GGRS and Bones integrations | ✓ 0.2.0 |
+| **M4** | Launch package: docs, examples, tutorial, benchmarks, an external tester through the tutorial unaided | docs done, launch pending |
 
-Every bridge shipped Pass 1 first, meaning recording with caller-provided hashes so that `tickwise compare` works on sessions from that engine. The C ABI now carries Pass 2 as well, a dump builder and the replayer, so Unity, Unreal, and cocos2d-x reach `tickwise diff` both from dumps recorded on an interval and from a replay. On those engines the probe is written by hand, like `DeterminismProbe` in Rust; Bevy and Godot walk their engines' reflection instead. Bridges live under `bridges/` in this repository, each as its own workspace or language project. They never touch the crates.io crates, and the core keeps `#![forbid(unsafe_code)]`. Unsafe code exists only inside `tickwise-ffi`.
+Engine bridges, v2, the same two-pass workflow from inside each engine. Every bridge records with caller-provided hashes, dumps state on an interval when asked, and reaches `tickwise diff` both from those dumps and from a replay:
+
+| Milestone | Bridge | Shape | Status |
+|---|---|---|---|
+| **M5** | [`tickwise-ffi`](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-ffi) | C ABI over the core, ABI version 2: recorder, dump builder, replayer. Shared and static library, generated header, a C harness in CI on three operating systems | ✓ |
+| **M6** | [Unity](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/unity/com.cosgunhalil.tickwise) | C# package over the C ABI, Unity 2022.3 and newer, installable by git URL, prebuilt binaries for Windows, macOS, Linux, Android, and iOS from the release workflow. Plain .NET tests in CI | ✓ first release pending |
+| **M7** | [Bevy](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-bevy) | Native crate against Bevy 0.19: a Reflect-walking probe with declared coverage and a fixed timestep plugin | ✓ crates.io release pending |
+| **M8** | [Godot](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-godot) | GDExtension built with gdext against the core for Godot 4.6, coverage by node group, headless engine test in CI | ✓ crates.io release pending |
+| **M9** | [Unreal](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-unreal) | 4.26 plugin over the shared C++ layer in [`tickwise-cpp`](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cpp): a recorder component, a Blueprint probe interface, a C++ state writer | code complete, editor build not yet verified |
+| **M10** | [cocos2d-x](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cocos2dx) | A `cocos2d::Node` over the shared C++ layer, verified against a shim of the engine calls it uses | ✓ |
+
+On Unity, Unreal, cocos2d-x, and in C or C++ the probe is written by hand, like `DeterminismProbe` in Rust; Bevy and Godot walk their engines' reflection instead. Bridges live under `bridges/`, each as its own workspace or language project. They never touch the crates.io crates, and the core keeps `#![forbid(unsafe_code)]`. Unsafe code exists only inside `tickwise-ffi`, every block with a SAFETY comment enforced by clippy.
 
 ## Non-goals
 
-Tickwise deliberately does not include, in v1 or later:
+Tickwise deliberately does not include:
 
 - ❌ Network or transport layer, netcode, or a rollback engine. GGRS and friends own that space.
 - ❌ Determinism linter or static analysis.
 - ❌ A fixed-point math library.
 - ❌ GUI or TUI visualizer, live monitoring.
 - ❌ Async API or tokio dependency. The core stays synchronous and allocation-conscious.
+- ❌ Automatic probes from engine reflection on Unity, Unreal, or cocos2d-x. You name the fields that count, the same way you do in Rust.
 
-Two former v1 non-goals, the Unity bridge and engine plugins, moved to the v2 roadmap above. They were never out of scope for the project, only for v1, and the core API was designed for them from the first decision.
+The Unity bridge and engine plugins were v1 non-goals only; they are in the repository now, and the core API was designed for them from the first decision.
 
 ## Contributing
 
