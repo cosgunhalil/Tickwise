@@ -56,3 +56,6 @@ bridges/tickwise-unreal/Tickwise/Binaries/
 bridges/tickwise-unreal/Tickwise/Intermediate/
 bridges/tickwise-unreal/build/
 bridges/tickwise-cpp/build/
+
+# cocos2d-x adapter CMake build output
+bridges/tickwise-cocos2dx/build/
