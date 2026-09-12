@@ -1,0 +1,15 @@
+; Test project for the Tickwise GDExtension. It has no scenes: the
+; whole simulation is built from code in main.gd so the run is easy to
+; reason about and easy to drive headless.
+
+config_version=5
+
+[application]
+
+config/name="Tickwise GDExtension tests"
+run/main_scene=""
+config/features=PackedStringArray("4.6")
+
+[physics]
+
+common/physics_ticks_per_second=60

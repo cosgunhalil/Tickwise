@@ -1,0 +1,17 @@
+[configuration]
+
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.2
+reloadable = true
+
+; The test runner copies the freshly built library into bin/ before
+; starting Godot, so these paths hold for every platform without the
+; project knowing where the Cargo target directory is.
+[libraries]
+
+linux.debug.x86_64 = "res://bin/libtickwise_godot.so"
+linux.release.x86_64 = "res://bin/libtickwise_godot.so"
+macos.debug = "res://bin/libtickwise_godot.dylib"
+macos.release = "res://bin/libtickwise_godot.dylib"
+windows.debug.x86_64 = "res://bin/tickwise_godot.dll"
+windows.release.x86_64 = "res://bin/tickwise_godot.dll"

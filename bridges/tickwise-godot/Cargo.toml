@@ -1,0 +1,26 @@
+[package]
+name = "tickwise-godot"
+description = "Record, replay, and diff deterministic Godot simulations: a Tickwise GDExtension for Godot 4"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cosgunhalil/Tickwise"
+documentation = "https://docs.rs/tickwise-godot"
+keywords = ["godot", "determinism", "desync", "replay", "netcode"]
+categories = ["game-development", "development-tools::debugging"]
+readme = "README.md"
+# The test project ships as a reference, but never the library the
+# tests build into it or the engine cache beside it.
+exclude = ["godot/bin/*", "godot/.godot/*"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+godot = "0.5"
+# The version is what a published copy depends on; the path is what the
+# repository builds against.
+tickwise = { path = "../../crates/tickwise", version = "0.2.2" }
+
+[workspace]

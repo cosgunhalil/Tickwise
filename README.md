@@ -134,7 +134,7 @@ v1 is the Rust core and the command line tool. v2 brings the same two-pass workf
 | **M5** | `tickwise-ffi` | C ABI over the core, shared and static library, generated header, prebuilt binaries for Windows, macOS, Linux, Android, and iOS |
 | **M6** | Unity | C# package over the C ABI, installable by git URL |
 | **M7** | Bevy | Native crate: a Reflect-walking probe and a fixed timestep plugin, see [bridges/tickwise-bevy](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-bevy) |
-| **M8** | Godot | GDExtension built with the gdext crate against the core |
+| **M8** | Godot | GDExtension built with the gdext crate against the core, see [bridges/tickwise-godot](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-godot) |
 | **M9** | Unreal | C++ plugin over the C ABI |
 | **M10** | cocos2d-x | C++ wrapper over the C ABI |
 

@@ -180,6 +180,62 @@ jobs:
             exit 1
           fi
 
+  godot:
+    name: tickwise-godot on ubuntu-latest
+    runs-on: ubuntu-latest
+    env:
+      # gdext 0.5 targets this API version, so the tests run against the
+      # engine the bindings were generated from.
+      GODOT_VERSION: 4.6-stable
+    defaults:
+      run:
+        working-directory: bridges/tickwise-godot
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridges/tickwise-godot
+
+      - name: Install Godot
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          name="Godot_v${GODOT_VERSION}_linux.x86_64"
+          curl -sSLo godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${name}.zip"
+          unzip -q godot.zip
+          chmod +x "$name"
+          "./$name" --headless --version
+          echo "GODOT_BIN=${{ runner.temp }}/$name" >> "$GITHUB_ENV"
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Lint with warnings as errors
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run the tests, including the headless Godot project
+        # Without this the integration test skips itself when no engine is
+        # present, which is right on a contributor's machine and wrong here.
+        env:
+          TICKWISE_REQUIRE_GODOT: "1"
+        run: cargo test
+
+      - name: Build documentation with warnings denied
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Check that the crate is publishable
+        run: cargo package --no-verify --allow-dirty
+
   bevy:
     name: tickwise-bevy on ubuntu-latest
     runs-on: ubuntu-latest

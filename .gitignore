@@ -43,3 +43,8 @@ bridges/unity/**/Plugins/**/*.bundle.meta
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 /.idea
+
+# Godot test project artifacts: the imported cache and the staged copy of
+# the extension, both rebuilt by the tests.
+bridges/tickwise-godot/godot/.godot/
+bridges/tickwise-godot/godot/bin/
