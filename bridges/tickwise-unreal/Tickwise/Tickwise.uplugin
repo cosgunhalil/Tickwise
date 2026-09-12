@@ -1,0 +1,26 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Tickwise",
+	"Description": "Record and compare deterministic simulations to find desyncs. Records inputs and per-tick hashes from your own fixed step into .rec files that the tickwise command line tool compares to name the first divergent tick.",
+	"Category": "Networking",
+	"CreatedBy": "Halil Coşgun",
+	"CreatedByURL": "https://github.com/cosgunhalil/Tickwise",
+	"DocsURL": "https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-unreal",
+	"MarketplaceURL": "",
+	"SupportURL": "https://github.com/cosgunhalil/Tickwise/issues",
+	"EngineVersion": "4.26.0",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "Tickwise",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [ "Win64", "Mac", "Linux" ]
+		}
+	]
+}

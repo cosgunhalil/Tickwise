@@ -1,0 +1,19 @@
+    Finished `release` profile [optimized] target(s) in 0.03s
+staged tickwise_ffi into C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\Tickwise\Source\ThirdParty\TickwiseFfi
+Parsing command line: BuildPlugin -Plugin=C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\Tickwise\Tickwise.uplugin -Package=C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\build\Tickwise -TargetPlatforms=Win64 -Rocket
+Copying 17 file(s) using max 64 thread(s)
+Reading plugin from C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\build\Tickwise\HostProject\Plugins\Tickwise\Tickwise.uplugin...
+Building plugin for host platforms: Win64
+Running: C:\Program Files\Epic Games\UE_4.26\Engine\Binaries\DotNET\UnrealBuildTool.exe UE4Editor Win64 Development -Project=C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\build\Tickwise\HostProject\HostProject.uproject -plugin=C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\build\Tickwise\HostProject\Plugins\Tickwise\Tickwise.uplugin -iwyu -noubtmakefiles -manifest=C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\build\Tickwise\HostProject\Saved\Manifest-UE4Editor-Win64-Development.xml -nohotreload -log="C:\Users\cosgu\AppData\Roaming\Unreal Engine\AutomationTool\Logs\C+Program+Files+Epic+Games+UE_4.26\UBT-UE4Editor-Win64-Development.txt"
+  ERROR: Could not find NetFxSDK install dir; this will prevent SwarmInterface from installing.  Install a version of .NET Framework SDK at 4.6.0 or higher.
+Took 3.8873494s to run UnrealBuildTool.exe, ExitCode=6
+UnrealBuildTool failed. See log for more details. (C:\Users\cosgu\AppData\Roaming\Unreal Engine\AutomationTool\Logs\C+Program+Files+Epic+Games+UE_4.26\UBT-UE4Editor-Win64-Development.txt)
+AutomationTool exiting with ExitCode=6 (6)
+BuildPlugin failed with exit code 6
+At C:\Users\cosgu\OneDrive\Documents\Projects\ProjectTickwise\Tickwise\bridges\tickwise-unreal\scripts\build-plugin.ps1
+:54 char:9
++         throw "BuildPlugin failed with exit code $LASTEXITCODE"
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (BuildPlugin failed with exit code 6:String) [], RuntimeException
+    + FullyQualifiedErrorId : BuildPlugin failed with exit code 6
+ 

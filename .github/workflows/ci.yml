@@ -180,6 +180,61 @@ jobs:
             exit 1
           fi
 
+  cpp:
+    name: tickwise-cpp on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            bridges/tickwise-ffi
+
+      - name: Build the native library
+        working-directory: bridges/tickwise-ffi
+        run: cargo build --release
+
+      - name: Configure the C++ layer
+        run: cmake -S bridges/tickwise-cpp -B bridges/tickwise-cpp/build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build the harness with warnings as errors
+        run: cmake --build bridges/tickwise-cpp/build --config Release
+
+      - name: Run the harness
+        run: ctest --test-dir bridges/tickwise-cpp/build -C Release --output-on-failure
+
+      - name: Read the harness recordings with the CLI
+        shell: bash
+        run: |
+          set -o pipefail
+          REC=bridges/tickwise-cpp/build/recordings
+          cargo run -q -p tickwise-cli -- inspect "$REC/clean.rec"
+          set +e
+          cargo run -q -p tickwise-cli -- compare "$REC/clean.rec" "$REC/chaotic.rec" | tee compare.log
+          code=${PIPESTATUS[0]}
+          set -e
+          test "$code" -eq 1 || { echo "::error::compare exited with $code, expected 1"; exit 1; }
+          grep -q "tick 421" compare.log
+
+  unreal-plugin:
+    name: unreal plugin layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the descriptor, module layout, and that no build output is tracked
+        run: bash bridges/tickwise-unreal/scripts/check-plugin.sh
+
   godot:
     name: tickwise-godot on ubuntu-latest
     runs-on: ubuntu-latest

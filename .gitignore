@@ -48,3 +48,11 @@ bridges/unity/**/Plugins/**/*.bundle.meta
 # the extension, both rebuilt by the tests.
 bridges/tickwise-godot/godot/.godot/
 bridges/tickwise-godot/godot/bin/
+
+# Unreal plugin: the staged native library, the C++ layer's CMake build,
+# and Unreal's own build output. All regenerated.
+bridges/tickwise-unreal/Tickwise/Source/ThirdParty/
+bridges/tickwise-unreal/Tickwise/Binaries/
+bridges/tickwise-unreal/Tickwise/Intermediate/
+bridges/tickwise-unreal/build/
+bridges/tickwise-cpp/build/

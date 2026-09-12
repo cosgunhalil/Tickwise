@@ -135,7 +135,7 @@ v1 is the Rust core and the command line tool. v2 brings the same two-pass workf
 | **M6** | Unity | C# package over the C ABI, installable by git URL |
 | **M7** | Bevy | Native crate: a Reflect-walking probe and a fixed timestep plugin, see [bridges/tickwise-bevy](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-bevy) |
 | **M8** | Godot | GDExtension built with the gdext crate against the core, see [bridges/tickwise-godot](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-godot) |
-| **M9** | Unreal | C++ plugin over the C ABI |
+| **M9** | Unreal | C++ plugin over the C ABI, see [bridges/tickwise-unreal](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-unreal), on a shared C++ layer in [bridges/tickwise-cpp](https://github.com/cosgunhalil/Tickwise/tree/main/bridges/tickwise-cpp) |
 | **M10** | cocos2d-x | C++ wrapper over the C ABI |
 
 Every bridge ships Pass 1 first, meaning recording with caller-provided hashes so that `tickwise compare` works on sessions from that engine. Replay, dumps, and engine reflection probes follow in a second iteration. Bridges live under `bridges/` in this repository, each as its own workspace or language project. They never touch the crates.io crates, and the core keeps `#![forbid(unsafe_code)]`. Unsafe code exists only inside `tickwise-ffi`.
