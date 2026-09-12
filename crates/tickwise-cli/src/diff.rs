@@ -1,4 +1,6 @@
-//! The diff command: field-level structural diff of two dump files.
+//! The diff command: field-level structural diff of the state dumps in two
+//! files, whether `.dump` files from a replay or `.rec` files that carry
+//! dumps taken at recording time.
 
 use std::fs::File;
 use std::io::BufReader;
@@ -20,6 +22,9 @@ pub struct DiffOptions {
     pub color: bool,
     /// Show every difference instead of truncating long lists.
     pub show_all: bool,
+    /// Diff only the dumps taken at this tick. A recording made with a
+    /// dump interval carries many, and compare names the one to look at.
+    pub at: Option<u64>,
 }
 
 /// Rendered diff output plus the verdict for the exit code.
@@ -43,6 +48,14 @@ pub fn parse_args(args: &[String]) -> Result<(String, String, DiffOptions), Stri
             "--strict" => options.policy = FloatPolicy::strict(),
             "--no-color" => options.color = false,
             "--all" => options.show_all = true,
+            "--at" => {
+                let value = iter.next().ok_or("--at needs a tick")?;
+                options.at = Some(
+                    value
+                        .parse()
+                        .map_err(|_| format!("--at: {value:?} is not a tick number"))?,
+                );
+            }
             "--epsilon-f32" => {
                 let value = iter.next().ok_or("--epsilon-f32 needs a value")?;
                 options.policy.epsilon_f32 = value
@@ -62,7 +75,7 @@ pub fn parse_args(args: &[String]) -> Result<(String, String, DiffOptions), Stri
     match paths.as_slice() {
         [a, b] => Ok((a.clone(), b.clone(), options)),
         _ => Err(
-            "usage: tickwise diff <a.dump> <b.dump> [--strict] [--epsilon-f32 X] \
+            "usage: tickwise diff <a> <b> [--at TICK] [--strict] [--epsilon-f32 X] \
                   [--epsilon-f64 X] [--all] [--no-color]"
                 .to_string(),
         ),
@@ -130,7 +143,21 @@ pub fn render<A: AsRef<Path>, B: AsRef<Path>>(
     let meta_a = reader_a.header().meta.clone();
     let meta_b = reader_b.header().meta.clone();
 
-    let report = structural_from(&mut reader_a, &mut reader_b, options.policy)?;
+    let mut report = structural_from(&mut reader_a, &mut reader_b, options.policy)?;
+    if let Some(at) = options.at {
+        let available: Vec<u64> = report.ticks.iter().map(|t| t.tick).collect();
+        report.ticks.retain(|t| t.tick == at);
+        if report.ticks.is_empty() {
+            return Err(DiffError::NoDumpAtTick {
+                tick: at,
+                available,
+            });
+        }
+        // The other shared ticks were deliberately left out, so they are
+        // not reported as one-sided either.
+        report.only_in_a.clear();
+        report.only_in_b.clear();
+    }
     let palette = Palette {
         enabled: options.color,
     };

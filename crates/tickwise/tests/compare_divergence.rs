@@ -58,6 +58,65 @@ fn compare(a: &[u8], b: &[u8]) -> Result<tickwise::compare::CompareReport, Compa
     first_divergence_from(&mut ra, &mut rb)
 }
 
+/// Records with a dump interval, diverging in the light hash from `strike`.
+fn record_with_dumps(dump_interval: u32, strike: Option<u64>) -> Vec<u8> {
+    let config = RecorderConfig {
+        full_hash_interval: FULL_INTERVAL,
+        dump_interval,
+        ..RecorderConfig::default()
+    };
+    let mut rec = Recorder::new(Vec::new(), config).unwrap();
+    let mut probe = ScriptedProbe { light: 0, full: 0 };
+    for tick in 0..1000u64 {
+        let diverged = strike.is_some_and(|at| tick >= at);
+        probe.light = tick ^ u64::from(diverged);
+        probe.full = tick;
+        rec.record_tick(tick, &[], &probe).unwrap();
+    }
+    rec.finish().unwrap()
+}
+
+#[test]
+fn a_report_names_the_dumps_each_side_carries() {
+    let a = record_with_dumps(250, None);
+    let b = record_with_dumps(250, Some(421));
+    let report = compare(&a, &b).unwrap();
+
+    assert_eq!(report.dump_ticks_a, vec![0, 250, 500, 750]);
+    assert_eq!(report.dump_ticks_b, vec![0, 250, 500, 750]);
+    assert!(report.has_dumps());
+    match report.outcome {
+        Outcome::Diverged(Divergence { tick: 421, .. }) => {}
+        other => panic!("{other:?}"),
+    }
+    // The first shared dump past the divergence is where diff should look,
+    // and the last one before it is the before picture.
+    assert_eq!(report.shared_dump_at_or_after(421), Some(500));
+    assert_eq!(report.shared_dump_at_or_before(420), Some(250));
+    assert_eq!(report.shared_dump_at_or_after(751), None);
+}
+
+#[test]
+fn dumps_on_only_one_side_are_reported_but_never_shared() {
+    let a = record_with_dumps(250, None);
+    let b = record_with_dumps(0, Some(421));
+    let report = compare(&a, &b).unwrap();
+
+    assert_eq!(report.dump_ticks_a.len(), 4);
+    assert!(report.dump_ticks_b.is_empty());
+    assert!(report.has_dumps());
+    assert_eq!(report.shared_dump_at_or_after(0), None);
+    assert_eq!(report.shared_dump_at_or_before(999), None);
+}
+
+#[test]
+fn recordings_without_dumps_report_none() {
+    let a = record(0..100, 1, |t| t, |t| t);
+    let report = compare(&a, &a).unwrap();
+    assert!(!report.has_dumps());
+    assert!(report.dump_ticks_a.is_empty());
+}
+
 #[test]
 fn identical_recordings_compare_identical() {
     let a = record(0..500, 1, |t| t * 3, |t| t * 7);

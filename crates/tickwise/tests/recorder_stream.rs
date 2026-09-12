@@ -87,7 +87,7 @@ fn recorded_session_reads_back_with_the_expected_structure() {
                 snapshots.push(*tick);
             }
             Chunk::Marker { tick, label } => markers.push((*tick, label.clone())),
-            Chunk::StateDump { .. } => panic!("recorder wrote a state dump, that is replay work"),
+            Chunk::StateDump { .. } => panic!("a state dump with no dump interval set"),
             Chunk::Unknown { .. } => panic!("recorder wrote an unknown chunk"),
         }
     }
@@ -262,6 +262,105 @@ fn wants_full_hash_predicts_exactly_the_ticks_that_request_one() {
         })
         .collect();
     assert_eq!(written, predicted);
+}
+
+/// A probe whose dump carries the tick it was taken at, so a test can
+/// tell the dumps apart after reading them back.
+struct DumpingProbe {
+    tick: std::cell::Cell<u64>,
+    dumps_asked: std::cell::Cell<u64>,
+}
+
+impl DeterminismProbe for DumpingProbe {
+    fn light_hash(&self) -> u64 {
+        self.tick.get()
+    }
+
+    fn full_hash(&self) -> u64 {
+        self.tick.get().wrapping_mul(31)
+    }
+
+    fn state_dump(&self) -> StateDump {
+        self.dumps_asked.set(self.dumps_asked.get() + 1);
+        let mut dump = StateDump::empty();
+        dump.insert("tick", self.tick.get());
+        dump.insert("score", self.tick.get() * 3);
+        dump
+    }
+}
+
+fn dump_ticks(bytes: &[u8]) -> Vec<(u64, StateDump)> {
+    let mut reader = RecReader::open(Cursor::new(bytes)).unwrap();
+    reader
+        .chunks()
+        .unwrap()
+        .map(Result::unwrap)
+        .filter_map(|chunk| match chunk {
+            Chunk::StateDump { tick, dump } => Some((tick, dump)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_dump_interval_records_dumps_at_recording_time() {
+    let config = RecorderConfig {
+        dump_interval: 50,
+        ..RecorderConfig::default()
+    };
+    let probe = DumpingProbe {
+        tick: std::cell::Cell::new(0),
+        dumps_asked: std::cell::Cell::new(0),
+    };
+    let mut rec = Recorder::new(Vec::new(), config).unwrap();
+    for tick in 0..TICKS {
+        probe.tick.set(tick);
+        assert_eq!(rec.wants_dump(tick), tick % 50 == 0, "tick {tick}");
+        rec.record_tick(tick, &[], &probe).unwrap();
+    }
+    // The probe paid for exactly the dumps that were kept, nothing more.
+    assert_eq!(probe.dumps_asked.get(), 3);
+    let bytes = rec.finish().unwrap();
+
+    let reader = RecReader::open(Cursor::new(&bytes)).unwrap();
+    assert_eq!(reader.header().config.dump_interval, 50);
+    let dumps = dump_ticks(&bytes);
+    let ticks: Vec<u64> = dumps.iter().map(|(tick, _)| *tick).collect();
+    assert_eq!(ticks, vec![0, 50, 100]);
+    // Each dump holds the state of its own tick, not a stale copy.
+    let mut expected = StateDump::empty();
+    expected.insert("tick", 100u64);
+    expected.insert("score", 300u64);
+    assert_eq!(dumps[2].1, expected);
+    assert_eq!(reader.tick_count(), TICKS);
+}
+
+#[test]
+fn a_dump_can_be_taken_on_demand_at_any_tick() {
+    let probe = DumpingProbe {
+        tick: std::cell::Cell::new(0),
+        dumps_asked: std::cell::Cell::new(0),
+    };
+    let mut rec = Recorder::new(Vec::new(), RecorderConfig::default()).unwrap();
+    for tick in 0..10 {
+        probe.tick.set(tick);
+        rec.record_tick(tick, &[], &probe).unwrap();
+        if tick == 7 {
+            // Next to a marker, the way a game would at round start.
+            rec.record_marker(tick, "round start").unwrap();
+            rec.record_dump(tick, &probe).unwrap();
+        }
+    }
+    assert!(!rec.wants_dump(7), "no interval means no scheduled dumps");
+    assert_eq!(probe.dumps_asked.get(), 1);
+    let bytes = rec.finish().unwrap();
+
+    let reader = RecReader::open(Cursor::new(&bytes)).unwrap();
+    assert_eq!(reader.header().config.dump_interval, 0);
+    let dumps = dump_ticks(&bytes);
+    assert_eq!(dumps.len(), 1);
+    assert_eq!(dumps[0].0, 7);
+    assert_eq!(reader.tick_count(), 10);
 }
 
 #[test]

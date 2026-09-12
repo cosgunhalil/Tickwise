@@ -75,6 +75,13 @@ pub struct TickwiseRecorder {
     #[export]
     input_format_id: i64,
 
+    /// How often a full state dump is recorded. Zero records none. With
+    /// dumps in both recordings, `tickwise diff a.rec b.rec` reaches field
+    /// level with no replay. Each dump walks every covered node, so keep
+    /// the interval generous and measure it.
+    #[export]
+    dump_interval: i64,
+
     /// The group whose nodes are covered by the full hash and the dump.
     #[export]
     group: StringName,
@@ -101,6 +108,7 @@ impl INode for TickwiseRecorder {
             rng_seed: 0,
             full_hash_interval: 300,
             input_format_id: 0,
+            dump_interval: 0,
             group: StringName::from("tickwise"),
             light_group: StringName::from("tickwise_light"),
             recorder: None,
@@ -189,6 +197,7 @@ impl TickwiseRecorder {
             // FNV-1a over the walk, which is nobody else's algorithm.
             hash_algo_id: 0,
             input_format_id: self.input_format_id as u64,
+            dump_interval: self.dump_interval.max(0) as u32,
         };
 
         match Recorder::create(&resolved, config) {

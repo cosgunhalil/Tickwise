@@ -224,6 +224,9 @@ pub unsafe extern "C" fn tickwise_recorder_create(
             },
             hash_algo_id: c.hash_algo_id,
             input_format_id: c.input_format_id,
+            // Dumps need a dump builder over the C ABI, which is the
+            // second iteration; until then the push model records none.
+            dump_interval: 0,
         };
         let recorder = Recorder::create(path, rust_config)?;
         let handle = Box::new(TickwiseRecorder {

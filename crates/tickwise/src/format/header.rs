@@ -63,6 +63,10 @@ pub struct ConfigEcho {
     /// User-declared identifier of the input encoding, decision #11.
     /// Replay fails loudly when the recording and the build disagree.
     pub input_format_id: u64,
+    /// Interval between state dumps taken at recording time, in ticks.
+    /// Zero means none were scheduled, which is what every recording made
+    /// before this field existed reports.
+    pub dump_interval: u32,
 }
 
 impl Default for ConfigEcho {
@@ -72,6 +76,7 @@ impl Default for ConfigEcho {
             snapshot_policy: SnapshotPolicy::Off,
             hash_algo_id: 0,
             input_format_id: 0,
+            dump_interval: 0,
         }
     }
 }
@@ -97,6 +102,9 @@ pub(super) fn encode_header_body(header: &Header) -> Result<Vec<u8>, FormatError
     push_u32(&mut out, header.config.snapshot_policy.to_wire());
     push_u16(&mut out, header.config.hash_algo_id);
     push_u64(&mut out, header.config.input_format_id);
+    // Appended after the original fields, so a reader from before this
+    // field existed skips it as trailing bytes.
+    push_u32(&mut out, header.config.dump_interval);
     Ok(out)
 }
 
@@ -116,6 +124,10 @@ pub(super) fn decode_header_body(body: &[u8]) -> Result<Header, FormatError> {
             snapshot_policy: SnapshotPolicy::from_wire(reader.u32()?),
             hash_algo_id: reader.u16()?,
             input_format_id: reader.u64()?,
+            // Absent in recordings made before dumps at recording time
+            // existed, where no dumps were ever scheduled. Present but
+            // cut short is corruption, and the read says so.
+            dump_interval: if reader.is_done() { 0 } else { reader.u32()? },
         },
     };
     // Trailing bytes are tolerated: a future minor version may append
@@ -142,7 +154,34 @@ mod tests {
                 snapshot_policy: SnapshotPolicy::Every(1800),
                 hash_algo_id: 1,
                 input_format_id: 42,
+                dump_interval: 600,
             },
+        }
+    }
+
+    /// The body as written before `dump_interval` existed: everything up
+    /// to and including the input format id.
+    fn legacy_body(header: &Header) -> Vec<u8> {
+        let mut body = encode_header_body(header).unwrap();
+        body.truncate(body.len() - 4);
+        body
+    }
+
+    #[test]
+    fn a_recording_from_before_dump_intervals_reads_as_no_dumps() {
+        let header = sample_header();
+        let decoded = decode_header_body(&legacy_body(&header)).unwrap();
+        assert_eq!(decoded.config.dump_interval, 0);
+        assert_eq!(decoded.meta, header.meta);
+        assert_eq!(decoded.config.input_format_id, 42);
+    }
+
+    #[test]
+    fn a_partially_written_dump_interval_is_corruption() {
+        let full = encode_header_body(&sample_header()).unwrap();
+        let mandatory = full.len() - 4;
+        for len in mandatory + 1..full.len() {
+            assert!(decode_header_body(&full[..len]).is_err(), "{len} bytes");
         }
     }
 
@@ -165,9 +204,11 @@ mod tests {
 
     #[test]
     fn truncated_header_is_an_error_not_a_panic() {
-        let body = encode_header_body(&sample_header()).unwrap();
+        // Every cut inside the mandatory fields is an error. The one
+        // legal short body, the legacy one, is covered by its own test.
+        let body = legacy_body(&sample_header());
         for len in 0..body.len() {
-            assert!(decode_header_body(&body[..len]).is_err());
+            assert!(decode_header_body(&body[..len]).is_err(), "{len} bytes");
         }
     }
 

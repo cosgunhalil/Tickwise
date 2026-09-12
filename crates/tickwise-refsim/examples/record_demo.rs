@@ -1,46 +1,70 @@
 //! Records a 6000 tick refsim session into a .rec file.
 //!
-//! Usage: record_demo <out.rec> [--chaos <mode> [start_tick]]
+//! Usage: record_demo <out.rec> [--chaos <mode> [start_tick]] [--dump-every <ticks>]
 //!
 //! Chaos modes: float-drift, hashmap-iter, stale-value, time-dependent.
 //! Record one clean session and one chaotic one, then watch tickwise
-//! compare find the strike tick.
+//! compare find the strike tick. With --dump-every, both recordings carry
+//! state dumps and tickwise diff reads them directly, no replay needed.
 
 use tickwise::format::SnapshotPolicy;
 use tickwise::{Recorder, RecorderConfig, SessionMeta};
 use tickwise_refsim::{ChaosConfig, Lcg, PlayerInput, World, WorldConfig};
 
+const USAGE: &str =
+    "usage: record_demo <out.rec> [--chaos <mode> [start_tick]] [--dump-every <ticks>]";
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(out_path) = args.first() else {
-        eprintln!("usage: record_demo <out.rec> [--chaos <mode> [start_tick]]");
+        eprintln!("{USAGE}");
         std::process::exit(2);
     };
 
-    let chaos = match args.get(1).map(String::as_str) {
-        Some("--chaos") => {
-            let Some(mode_name) = args.get(2) else {
-                eprintln!(
-                    "--chaos needs a mode: float-drift, hashmap-iter, stale-value, time-dependent"
-                );
-                std::process::exit(2);
-            };
-            let mode = match mode_name.parse() {
-                Ok(mode) => mode,
-                Err(err) => {
-                    eprintln!("{err}");
+    let mut chaos = None;
+    let mut dump_interval = 0u32;
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--chaos" => {
+                let Some(mode_name) = args.get(index + 1) else {
+                    eprintln!(
+                        "--chaos needs a mode: float-drift, hashmap-iter, stale-value, time-dependent"
+                    );
                     std::process::exit(2);
-                }
-            };
-            let start_tick = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(3000u64);
-            Some(ChaosConfig { mode, start_tick })
+                };
+                let mode = match mode_name.parse() {
+                    Ok(mode) => mode,
+                    Err(err) => {
+                        eprintln!("{err}");
+                        std::process::exit(2);
+                    }
+                };
+                index += 2;
+                // An optional start tick follows the mode.
+                let start_tick = match args.get(index).and_then(|s| s.parse().ok()) {
+                    Some(tick) => {
+                        index += 1;
+                        tick
+                    }
+                    None => 3000u64,
+                };
+                chaos = Some(ChaosConfig { mode, start_tick });
+            }
+            "--dump-every" => {
+                let Some(value) = args.get(index + 1).and_then(|s| s.parse::<u32>().ok()) else {
+                    eprintln!("--dump-every needs a tick count");
+                    std::process::exit(2);
+                };
+                dump_interval = value;
+                index += 2;
+            }
+            other => {
+                eprintln!("unknown argument {other}\n{USAGE}");
+                std::process::exit(2);
+            }
         }
-        Some(other) => {
-            eprintln!("unknown argument {other}");
-            std::process::exit(2);
-        }
-        None => None,
-    };
+    }
 
     let seed = 0x0DD_BA11u64;
     let config = RecorderConfig {
@@ -55,6 +79,7 @@ fn main() {
         full_hash_interval: 300,
         snapshot: SnapshotPolicy::Every(1800),
         input_format_id: 1,
+        dump_interval,
         ..RecorderConfig::default()
     };
     let mut world = World::new(WorldConfig {
@@ -83,11 +108,17 @@ fn main() {
     }
     rec.record_marker(3000, "halfway point").unwrap();
     rec.finish().unwrap();
+
+    let dumps = if dump_interval > 0 {
+        format!(", with a state dump every {dump_interval} ticks")
+    } else {
+        String::new()
+    };
     match chaos {
         Some(c) => println!(
-            "recorded 6000 ticks with {} chaos from tick {}",
+            "recorded 6000 ticks with {} chaos from tick {}{dumps}",
             c.mode, c.start_tick
         ),
-        None => println!("recorded 6000 clean ticks"),
+        None => println!("recorded 6000 clean ticks{dumps}"),
     }
 }

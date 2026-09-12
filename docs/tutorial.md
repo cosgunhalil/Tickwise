@@ -156,6 +156,37 @@ tick 4021       1 difference over 41 fields: 0 structural, 1 exact, 0 sub-epsilo
 
 Forty fields agree, one does not. The score jumped from 3317 to a garbage number, because a stale scratch value was added into it. That is the stale-value bug, caught at the first tick it struck, named down to the field. You found your first desync.
 
+### The same answer without a replay
+
+Pass 2 above leaned on one thing: the replay reproduced the session, which the second line of `replay_demo` confirmed hash by hash. A desync caused by wall clock time or an unordered collection does not reproduce, and step 6 shows what that looks like: the replay fails verification before it reaches the tick. For those, the recorder can take the dumps during Pass 1 instead. Record both sessions again with a dump every 300 ticks:
+
+```
+cargo run -q -p tickwise-refsim --example record_demo -- clean.rec --dump-every 300
+cargo run -q -p tickwise-refsim --example record_demo -- chaotic.rec --chaos stale-value 4021 --dump-every 300
+tickwise compare clean.rec chaotic.rec
+```
+
+The verdict is the same, and the next step changes:
+
+```
+  next           both recordings carry state dumps. Tick 4200 is the first
+                 dump at or after the divergence, so diff there directly:
+                 tickwise diff clean.rec chaotic.rec --at 4200
+                 tick 3900 holds the last dump where they still agreed,
+                 for a before and after view
+```
+
+```
+tickwise diff clean.rec chaotic.rec --at 4200
+```
+
+```
+tick 4200       1 difference over 41 fields: 0 structural, 1 exact, 0 sub-epsilon float drift
+  exact          score: 3319 versus 17442532184565814099
+```
+
+Same field, no replay, and it would have worked just as well for a bug that never reproduces. The price is a full state dump inside the game loop every 300 ticks, which grew this recording from 283 to 304 kilobytes, and a resolution of 300 ticks: the diff shows the state up to five seconds after the strike rather than at it. The [hash coverage checklist](hash-coverage.md) weighs that trade-off. When the session does reproduce, the replay still gives the exact first-tick picture.
+
 ## 6. Try the other chaos classes, 3 minutes
 
 Each chaos class leaves a different fingerprint. Repeat steps 2 to 5 with a different flag and watch the reports change.

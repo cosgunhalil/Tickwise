@@ -25,6 +25,14 @@ pub enum DiffError {
     },
     /// The files hold dumps, but at no common tick.
     NoCommonTicks,
+    /// A single tick was asked for, and the files share dumps, but not at
+    /// that tick.
+    NoDumpAtTick {
+        /// The tick that was asked for.
+        tick: u64,
+        /// The ticks both files do share, ascending.
+        available: Vec<u64>,
+    },
 }
 
 impl std::fmt::Display for DiffError {
@@ -34,13 +42,25 @@ impl std::fmt::Display for DiffError {
             Self::NoDumps { side } => write!(
                 f,
                 "the {side} file holds no state dumps, was it produced by a replay with \
-                 dump_at_ticks set"
+                 dump_at_ticks set, or recorded with a dump_interval"
             ),
             Self::NoCommonTicks => write!(
                 f,
                 "the files hold dumps at different ticks and share none, \
                  replay both recordings with the same dump_at_ticks"
             ),
+            Self::NoDumpAtTick { tick, available } => {
+                let shown: Vec<String> = available.iter().take(12).map(u64::to_string).collect();
+                write!(
+                    f,
+                    "no dump at tick {tick} in both files; the ticks they share are {}",
+                    shown.join(", ")
+                )?;
+                if available.len() > 12 {
+                    write!(f, " and {} more", available.len() - 12)?;
+                }
+                Ok(())
+            }
         }
     }
 }

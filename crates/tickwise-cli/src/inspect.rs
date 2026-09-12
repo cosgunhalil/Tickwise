@@ -102,6 +102,10 @@ pub fn render<P: AsRef<Path>>(path: P) -> Result<Report, FormatError> {
         SnapshotPolicy::Off => "  snapshots      off\n".to_string(),
         SnapshotPolicy::Every(n) => format!("  snapshots      every {n} ticks\n"),
     });
+    s.push_str(&match config.dump_interval {
+        0 => "  state dumps    off\n".to_string(),
+        n => format!("  state dumps    every {n} ticks\n"),
+    });
     s.push_str(&format!("  hash algo      id {}\n", config.hash_algo_id));
     s.push_str(&format!("  input format   id {}\n", config.input_format_id));
     s.push('\n');

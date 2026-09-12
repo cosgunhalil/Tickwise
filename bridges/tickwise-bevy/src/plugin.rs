@@ -199,6 +199,19 @@ impl TickwisePlugin {
         self.config.full_hash_interval = ticks;
         self
     }
+
+    /// Sets how often a state dump is recorded during Pass 1. Zero, the
+    /// default, records none.
+    ///
+    /// With dumps in both recordings, `tickwise diff a.rec b.rec` reaches
+    /// field level with no replay, which is the only route for a desync
+    /// that does not reproduce. Each dump walks every registered type, so
+    /// this is the most expensive thing the plugin does per tick; measure
+    /// before choosing an interval.
+    pub fn with_dump_interval(mut self, ticks: u32) -> Self {
+        self.config.dump_interval = ticks;
+        self
+    }
 }
 
 impl Plugin for TickwisePlugin {

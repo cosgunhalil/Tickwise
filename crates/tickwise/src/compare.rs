@@ -138,13 +138,47 @@ impl std::fmt::Display for CompareWarning {
     }
 }
 
-/// The full comparison result: a verdict plus metadata warnings.
+/// The full comparison result: a verdict plus metadata warnings, and the
+/// state dumps each recording carries, which decide whether Pass 2 needs
+/// a replay at all.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompareReport {
     /// The verdict.
     pub outcome: Outcome,
     /// Metadata differences found along the way.
     pub warnings: Vec<CompareWarning>,
+    /// Ticks at which the first recording carries a state dump, ascending.
+    pub dump_ticks_a: Vec<u64>,
+    /// Ticks at which the second recording carries a state dump, ascending.
+    pub dump_ticks_b: Vec<u64>,
+}
+
+impl CompareReport {
+    /// The first tick at or after `tick` where both recordings carry a
+    /// dump. Diffing there needs no replay.
+    pub fn shared_dump_at_or_after(&self, tick: u64) -> Option<u64> {
+        self.dump_ticks_a
+            .iter()
+            .copied()
+            .filter(|t| *t >= tick)
+            .find(|t| self.dump_ticks_b.binary_search(t).is_ok())
+    }
+
+    /// The last tick at or before `tick` where both recordings carry a
+    /// dump: the most recent state they can be shown to have shared.
+    pub fn shared_dump_at_or_before(&self, tick: u64) -> Option<u64> {
+        self.dump_ticks_a
+            .iter()
+            .rev()
+            .copied()
+            .filter(|t| *t <= tick)
+            .find(|t| self.dump_ticks_b.binary_search(t).is_ok())
+    }
+
+    /// True when either recording carries any dump at all.
+    pub fn has_dumps(&self) -> bool {
+        !self.dump_ticks_a.is_empty() || !self.dump_ticks_b.is_empty()
+    }
 }
 
 impl std::fmt::Display for CompareReport {
@@ -201,6 +235,7 @@ impl std::fmt::Display for CompareReport {
 struct HashTimeline {
     light: BTreeMap<u64, u64>,
     full: BTreeMap<u64, u64>,
+    dumps: Vec<u64>,
     hash_algo_id: u16,
     rng_seed: u64,
     tick_rate: u32,
@@ -212,6 +247,7 @@ fn load_timeline<R: Read + Seek>(reader: &mut RecReader<R>) -> Result<HashTimeli
     let header = reader.header().clone();
     let mut light = BTreeMap::new();
     let mut full = BTreeMap::new();
+    let mut dumps = std::collections::BTreeSet::new();
 
     for item in reader.chunks()? {
         match item? {
@@ -223,6 +259,11 @@ fn load_timeline<R: Read + Seek>(reader: &mut RecReader<R>) -> Result<HashTimeli
             Chunk::FullHash { tick, hash } => {
                 full.insert(tick, hash);
             }
+            // Only the tick is kept: compare never opens a dump, it just
+            // reports where one exists so diff can be pointed at it.
+            Chunk::StateDump { tick, .. } => {
+                dumps.insert(tick);
+            }
             _ => {}
         }
     }
@@ -230,6 +271,7 @@ fn load_timeline<R: Read + Seek>(reader: &mut RecReader<R>) -> Result<HashTimeli
     Ok(HashTimeline {
         light,
         full,
+        dumps: dumps.into_iter().collect(),
         hash_algo_id: header.config.hash_algo_id,
         rng_seed: header.meta.rng_seed,
         tick_rate: header.meta.tick_rate,
@@ -364,5 +406,10 @@ pub fn first_divergence_from<Ra: Read + Seek, Rb: Read + Seek>(
         }),
     };
 
-    Ok(CompareReport { outcome, warnings })
+    Ok(CompareReport {
+        outcome,
+        warnings,
+        dump_ticks_a: ta.dumps,
+        dump_ticks_b: tb.dumps,
+    })
 }

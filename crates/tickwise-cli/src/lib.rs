@@ -16,12 +16,14 @@ Tickwise: record, replay, and diff deterministic simulations.
 Usage:
   tickwise inspect <session.rec>    show metadata and statistics for a recording
   tickwise compare <a.rec> <b.rec>  find the first divergent tick
-  tickwise diff <a.dump> <b.dump>   field-level structural diff of two state dumps
+  tickwise diff <a> <b>             field-level structural diff of the state dumps in
+                                    two files, .dump files or .rec files that carry dumps
 
 Diff flags:
   --strict             every bit-level float difference counts as exact
   --epsilon-f32 <x>    sub-epsilon threshold for f32, default 1e-5
   --epsilon-f64 <x>    sub-epsilon threshold for f64, default 1e-12
+  --at <tick>          diff only the dumps taken at this tick
   --all                show every difference instead of the first 100 per tick
   --no-color           plain output, also honored via the NO_COLOR variable
 

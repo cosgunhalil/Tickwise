@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- Dumps at recording time. `RecorderConfig::dump_interval` schedules a full state dump every N ticks during Pass 1, stored in the `.rec` file; `Recorder::record_dump` takes one on demand. `compare` reports the dumps each recording carries and points at the first shared dump after the divergence, and `tickwise diff` accepts `.rec` files that carry dumps, with `--at <tick>` to pick one. Field level for a desync that does not reproduce, with no replay. The header gains a `dump_interval` field, appended so recordings made before it read back as having none. The `record_demo` example takes `--dump-every`.
 - `Recorder::wants_full_hash(tick)` reports whether the next `record_tick` will request a full hash at that tick, the twin of `wants_snapshot`. Callers that compute hashes themselves, such as the engine bridges over the C ABI, use it to skip the expensive full hash on every other tick. Probe-based Rust callers are unaffected.
 
 ## [0.2.2] - 2026-09-05

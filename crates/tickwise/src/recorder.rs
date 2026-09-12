@@ -4,8 +4,9 @@
 //! path stays cheap: payloads are encoded into one reused scratch buffer
 //! and no allocation happens in the steady state.
 
+use crate::dump::StateDump;
 use crate::format::wire::{push_u32, push_u64};
-use crate::format::{FormatError, Header, RecWriter, SessionMeta, SnapshotPolicy, kind};
+use crate::format::{Chunk, FormatError, Header, RecWriter, SessionMeta, SnapshotPolicy, kind};
 use crate::probe::DeterminismProbe;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -76,6 +77,17 @@ pub struct RecorderConfig {
     pub hash_algo_id: u16,
     /// User-declared input encoding identifier, decision #11.
     pub input_format_id: u64,
+    /// State dump interval in ticks. Zero, the default, records no dumps
+    /// during Pass 1.
+    ///
+    /// A dump taken at recording time is the Pass 2 shortcut: two
+    /// machines' dumps can be diffed with `tickwise diff a.rec b.rec`
+    /// and no replay at all, which is the only way to reach field level
+    /// for a desync that does not reproduce. The cost is a full
+    /// [`state_dump`](DeterminismProbe::state_dump) every N ticks inside
+    /// the game loop, so choose N with the same care as the full hash
+    /// interval and measure it.
+    pub dump_interval: u32,
 }
 
 impl Default for RecorderConfig {
@@ -86,6 +98,7 @@ impl Default for RecorderConfig {
             snapshot: SnapshotPolicy::Off,
             hash_algo_id: 0,
             input_format_id: 0,
+            dump_interval: 0,
         }
     }
 }
@@ -131,6 +144,7 @@ impl Default for RecorderConfig {
 pub struct Recorder<W: Write> {
     writer: RecWriter<W>,
     full_hash_interval: u32,
+    dump_interval: u32,
     snapshot: SnapshotPolicy,
     next_tick: Option<u64>,
     ticks_recorded: u64,
@@ -158,11 +172,13 @@ impl<W: Write> Recorder<W> {
                 snapshot_policy: config.snapshot,
                 hash_algo_id: config.hash_algo_id,
                 input_format_id: config.input_format_id,
+                dump_interval: config.dump_interval,
             },
         };
         Ok(Self {
             writer: RecWriter::new(sink, &header)?,
             full_hash_interval: config.full_hash_interval,
+            dump_interval: config.dump_interval,
             snapshot: config.snapshot,
             next_tick: None,
             ticks_recorded: 0,
@@ -226,7 +242,37 @@ impl<W: Write> Recorder<W> {
                 .write_raw_chunk(kind::FULL_HASH, tick, &self.scratch)?;
         }
 
+        if self.wants_dump(tick) {
+            self.write_dump(tick, probe.state_dump())?;
+        }
+
         self.ticks_recorded += 1;
+        Ok(())
+    }
+
+    /// Returns true when [`record_tick`](Recorder::record_tick) will ask
+    /// the probe for a state dump at this tick, per the configured
+    /// [`dump_interval`](RecorderConfig::dump_interval).
+    pub fn wants_dump(&self, tick: u64) -> bool {
+        self.dump_interval > 0 && tick.is_multiple_of(u64::from(self.dump_interval))
+    }
+
+    /// Records a state dump at the given tick, on demand.
+    ///
+    /// For a dump at a point the interval would miss, for example next to
+    /// a marker at round start, or when a live check such as an exchanged
+    /// hash has just disagreed. The dump lands in the recording and
+    /// `tickwise diff` reads it from there.
+    pub fn record_dump(
+        &mut self,
+        tick: u64,
+        probe: &dyn DeterminismProbe,
+    ) -> Result<(), RecordError> {
+        self.write_dump(tick, probe.state_dump())
+    }
+
+    fn write_dump(&mut self, tick: u64, dump: StateDump) -> Result<(), RecordError> {
+        self.writer.write_chunk(&Chunk::StateDump { tick, dump })?;
         Ok(())
     }
 

@@ -24,6 +24,7 @@ fn sample_header() -> Header {
             snapshot_policy: SnapshotPolicy::Every(1800),
             hash_algo_id: 1,
             input_format_id: 42,
+            dump_interval: 600,
         },
     }
 }

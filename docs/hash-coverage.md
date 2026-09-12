@@ -68,6 +68,20 @@ A probe can lie in ways that look like desyncs or hide real ones. These rules ke
 - For the light hash budget, build a small view struct of the critical fields and pass it to `SerdeProbe::with_light(&state, &view)`. The view is your light digest checklist in code.
 - Declare an input format id through `format_id("MyInput v1")` and bump the label when the input type changes. The replayer refuses recordings made with an older encoding, which prevents a whole category of confusing false desyncs.
 
+## Dumps at recording time, and what they cost
+
+Pass 2 as the tutorial shows it replays a recording and dumps the state at the divergent tick. That works when the replay reproduces the session, which the replayer verifies hash by hash. It fails for the class of desync that matters most: one that does not reproduce, because the cause was wall clock time, an unordered collection, or anything else that differs between runs. The replay diverges from the recording before reaching the tick, and the field level stays out of reach.
+
+`RecorderConfig::dump_interval` is the way around it. With an interval set, the recorder asks the probe for a full state dump every N ticks during Pass 1 and stores it in the `.rec` file itself. Two machines then send their recordings, `tickwise compare` names the divergent tick and the first dump at or after it, and `tickwise diff a.rec b.rec --at <tick>` reads the dumps straight from the recordings. Nothing is replayed, so nothing has to reproduce. `Recorder::record_dump` takes one on demand as well, next to a round start marker or the moment a live hash exchange disagrees.
+
+The trade-off is real and worth measuring rather than guessing:
+
+- **A dump is the expensive path, inside the game loop.** `state_dump` walks every covered field and allocates the result. The full hash walks the same fields and allocates nothing. On the reference simulation a dump costs on the order of the full hash plus the allocation of a few hundred entries, and a serde probe pays the postcard encoding on top.
+- **Recordings grow.** A dump of the reference simulation's 41 fields is a few hundred bytes. Every 300 ticks over a ten minute match at 60 ticks per second, that is 120 dumps and a few dozen kilobytes, negligible next to the input stream. Every tick, it is not.
+- **Resolution is the interval.** A dump every 300 ticks means the diff shows state up to five seconds after the strike, and by then a small drift may have compounded or spread. The compare report also names the last shared dump before the divergence, so the before and after pair bounds the damage. For a first look that is usually enough to name the field; for the exact first-tick picture, the replay path is still there when the session reproduces.
+
+A reasonable default is the full hash interval or a multiple of it, dumps aligned with full hashes so each dump comes with a hash that confirms whether that tick had already diverged. Turn it on for internal playtests and soak runs, where a desync is expensive to chase and the frame budget has room, and off for shipped builds unless a session is worth the cost.
+
 ## Quick self-test
 
 Record a session. Replay it and record the replay. Run `compare` on the two. If the verdict is identical, your probe is deterministic on one machine. If it is not, fix that before comparing across machines, because a non-deterministic probe makes every cross-machine result meaningless.

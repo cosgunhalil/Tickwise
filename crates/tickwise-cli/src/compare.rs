@@ -69,12 +69,41 @@ pub fn render<A: AsRef<Path>, B: AsRef<Path>>(a: A, b: B) -> Result<CompareOutpu
             false
         }
         Outcome::Diverged(d) => {
-            s.push_str(&format!(
-                "  next           Pass 2: replay each recording in your own loop with\n\
-                 \x20                dump_at_ticks = [{}] to produce two .dump files, then run\n\
-                 \x20                tickwise diff a.dump b.dump\n",
-                d.tick
-            ));
+            let a = path_a.display();
+            let b = path_b.display();
+            if let Some(at) = report.shared_dump_at_or_after(d.tick) {
+                // Both sides carry a dump past the divergence: field level
+                // is one command away and no replay is needed.
+                s.push_str(&format!(
+                    "  next           both recordings carry state dumps. Tick {at} is the first\n\
+                     \x20                dump at or after the divergence, so diff there directly:\n\
+                     \x20                tickwise diff {a} {b} --at {at}\n"
+                ));
+                if let Some(before) = report.shared_dump_at_or_before(d.tick.saturating_sub(1)) {
+                    s.push_str(&format!(
+                        "  \x20              tick {before} holds the last dump where they still agreed,\n\
+                         \x20                for a before and after view\n"
+                    ));
+                }
+            } else if report.has_dumps() {
+                s.push_str(&format!(
+                    "  next           the recordings carry state dumps, but none at a shared tick\n\
+                     \x20                at or after the divergence. Pass 2: replay each recording\n\
+                     \x20                with dump_at_ticks = [{}] and run tickwise diff on the\n\
+                     \x20                results, or record with a dump_interval that lands past\n\
+                     \x20                the strike next time\n",
+                    d.tick
+                ));
+            } else {
+                s.push_str(&format!(
+                    "  next           Pass 2: replay each recording in your own loop with\n\
+                     \x20                dump_at_ticks = [{}] to produce two .dump files, then run\n\
+                     \x20                tickwise diff a.dump b.dump. If the desync does not\n\
+                     \x20                reproduce on replay, record with dump_interval set and\n\
+                     \x20                diff the recordings themselves next time\n",
+                    d.tick
+                ));
+            }
             true
         }
     };
